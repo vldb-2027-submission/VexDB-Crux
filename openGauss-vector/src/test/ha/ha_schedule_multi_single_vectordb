@@ -1,0 +1,3 @@
+multi_standby_single/ivf_index
+multi_standby_single/hnsw_index
+multi_standby_single/diskann_index

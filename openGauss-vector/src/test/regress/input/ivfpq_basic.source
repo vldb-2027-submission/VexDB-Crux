@@ -1,0 +1,146 @@
+
+\set srcdir '.';
+-- 1准备数据：
+-- Step 1: Create the items table
+CREATE TABLE csv_to_insert (
+    id BIGINT PRIMARY KEY,
+    embedding FLOATVECTOR(128)
+);
+
+CREATE TABLE csv_to_query (
+    id BIGINT PRIMARY KEY,
+    embedding FLOATVECTOR(128)
+);
+
+-- Step 2: Create the temp_csv_to_insert table
+CREATE TABLE temp_csv_to_insert (
+    id BIGINT,
+    embedding TEXT
+);
+CREATE TABLE temp_csv_to_query (
+    id BIGINT,
+    embedding TEXT
+);
+
+-- Step 3: Import CSV data into temp_csv_to_insert
+COPY temp_csv_to_insert (id, embedding)
+FROM '@abs_srcdir@/data/testIvfflat/data/vec_to_insert.csv'
+DELIMITER ','
+CSV;
+
+COPY temp_csv_to_query (id, embedding)
+FROM '@abs_srcdir@/data/testIvfflat/data/vec_to_query.csv'
+DELIMITER ','
+CSV;
+
+-- 手动调整：$CODE_BASE/src/test/regress/data/testIvfflat/data/vec_to_query.csv
+-- 手动调整：$CODE_BASE/src/test/regress/data/testIvfflat/data/vec_to_insert.csv
+
+SELECT * FROM temp_csv_to_insert;
+SELECT * FROM temp_csv_to_query;
+
+-- Step 4: 将temp_csv_to_insert的数据转换为标准格式并存储到csv_to_insert
+CREATE OR REPLACE FUNCTION populate_floatvector_from_text()
+RETURNS VOID AS $$
+DECLARE
+    rec_temp RECORD;
+    arr_text TEXT[];
+    arr_int INT[];
+BEGIN
+    -- Fetch data from temp_items and populate items table
+    FOR rec_temp IN SELECT * FROM temp_csv_to_insert LOOP
+        -- Split the text into array and convert each element to int
+        arr_text := string_to_array(trim(both '{}' from rec_temp.embedding), ',');
+        arr_int := ARRAY[]::INT[];
+
+        -- Convert each element of arr_text to INT and populate arr_int
+        FOR i IN 1 .. array_length(arr_text, 1) LOOP
+            arr_int := arr_int || arr_text[i]::INT;
+        END LOOP;
+
+        -- Insert into items table with proper casting to FLOATVECTOR type
+        INSERT INTO csv_to_insert (id, embedding) VALUES (rec_temp.id, array_to_floatvector(arr_int, 128));
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION populate_floatvector_from_text1()
+RETURNS VOID AS $$
+DECLARE
+    rec_temp RECORD;
+    arr_text TEXT[];
+    arr_int INT[];
+BEGIN
+    -- Fetch data from temp_items and populate items table
+    FOR rec_temp IN SELECT * FROM temp_csv_to_query LOOP
+        -- Split the text into array and convert each element to int
+        arr_text := string_to_array(trim(both '{}' from rec_temp.embedding), ',');
+        arr_int := ARRAY[]::INT[];
+
+        -- Convert each element of arr_text to INT and populate arr_int
+        FOR i IN 1 .. array_length(arr_text, 1) LOOP
+            arr_int := arr_int || arr_text[i]::INT;
+        END LOOP;
+
+        -- Insert into items table with proper casting to FLOATVECTOR type
+        INSERT INTO csv_to_query (id, embedding) VALUES (rec_temp.id, array_to_floatvector(arr_int, 128));
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Step 5: Execute the function
+SELECT populate_floatvector_from_text();
+SELECT populate_floatvector_from_text1();
+
+-- Step 6: Verify the data
+SELECT * FROM csv_to_insert LIMIT 5;
+SELECT * FROM csv_to_query LIMIT 5;
+
+
+-- 2测试功能
+
+-- 建表
+CREATE TABLE items (id bigserial, embedding floatvector(128));
+
+-- 测试ivfflatinsert
+INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;
+INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;
+INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;
+INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;
+set client_min_messages=warning;
+-- 测试 ivfflatbuild
+CREATE INDEX ON items USING ivfpq (embedding floatvector_l2_ops) with (ivf_nlist=50, num_subquantizers=64, nbits=8);
+set client_min_messages=notice;
+
+-- 批量删除表中数据(但不全删)
+delete from items where id = 1;
+select * from items where id < 10;
+
+
+-- 使用Vaccum命令，测试ivfflatvacuumcleanup
+delete from items;
+
+\! @abs_bindir@/gs_guc reload -D @abs_srcdir@/tmp_check/datanode1 -c "ivf_extend_file_block_batch_count=1" > /dev/null 2>&1
+select pg_sleep(4);
+show ivf_extend_file_block_batch_count;
+
+-- restart gaussdb, so that vacuums command can recycle page to fsm
+\! @abs_bindir@/gs_ctl stop -D @abs_srcdir@/tmp_check/datanode1  > /dev/null
+\! @abs_bindir@/gs_ctl start -D @abs_srcdir@/tmp_check/datanode1  > /dev/null
+\! sleep 4
+\! @abs_bindir@/gsql -r -p @portstring@ -d regression -c "VACUUM items;"
+-- index fsm file should appear
+\! cd @abs_srcdir@/tmp_check/datanode1; ls $(@abs_bindir@/gsql -r -p @portstring@ -d regression -c "SELECT pg_relation_filepath('items_embedding_idx');" | grep base)* | wc -l
+
+-- reinsert the same data to the table and index, index size should not increase because we can reuse page from fsm
+\! @abs_bindir@/gsql -r -p @portstring@ -d regression -c "INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;INSERT INTO items (id, embedding) SELECT id, embedding FROM csv_to_insert;"
+
+
+-- 测试ivfflatbeginscan ivfflatrescan ivfflatendscan ivfflatgettuple
+\! @abs_bindir@/gsql -r -p @portstring@ -d regression -c "SET enable_seqscan TO off; set ivf_probes=50; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from csv_to_query where id = 1);" > ./scan_results
+\! wc -l ./scan_results
+\! rm -rf ./scan_results > /dev/null
+
+\! @abs_bindir@/gsql -r -p @portstring@ -d regression -c "drop table csv_to_insert, csv_to_query, temp_csv_to_insert, temp_csv_to_query, items;"

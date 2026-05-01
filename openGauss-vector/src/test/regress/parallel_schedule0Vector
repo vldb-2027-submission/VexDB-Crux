@@ -1,0 +1,3 @@
+test: ivfflat_basic
+test: ivfpq_basic
+test: diskann

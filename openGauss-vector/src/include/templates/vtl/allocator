@@ -1,0 +1,597 @@
+/**
+ * Copyright ...
+ */
+
+#ifndef CONTAINER_ALLOCATOR_H
+#define CONTAINER_ALLOCATOR_H
+
+#include <vtl/internal/container.hpp>
+#ifdef USE_INTERNAL_MEMORY
+#include <type_traits>
+#include <cstddef>
+
+#include <vtl/source_location>
+#include <vtl/internal/expr.hpp>
+
+#include "utils/palloc.h"
+#include "utils/memtrace.h"
+
+namespace vtl {
+inline void InsertMemoryAllocInfo(const void* pointer, MemoryContext context,
+                                         const char* file, int line, Size size)
+{
+    if (unlikely(g_instance.stat_cxt.track_memory_inited)) {
+        if ((unlikely(strncmp(context->name, "Track MemoryInfo hash", NAMEDATALEN) != 0)) &&
+             unlikely(MemoryContextShouldTrack(context->name))) {
+            /*
+             * Get lock failed means there is some thread get write lock,
+             * we could not insert track memory info now, so pass it
+             */
+            if (likely(pthread_rwlock_tryrdlock(&g_instance.stat_cxt.track_memory_lock) == 0)) {
+                InsertTrackMemoryInfo(pointer, context, file, line, size);
+                (void)pthread_rwlock_unlock(&g_instance.stat_cxt.track_memory_lock);
+            }
+        }
+    }
+}
+inline void RemoveMemoryAllocInfo(const void* pointer, MemoryContext context)
+{
+    if (unlikely(g_instance.stat_cxt.track_memory_inited) &&
+        unlikely(MemoryContextShouldTrack(context->name))) {
+        /* Do not use tryrdlock because it may cause use-after-free */
+        if (likely(pthread_rwlock_rdlock(&g_instance.stat_cxt.track_memory_lock) == 0)) {
+            RemoveTrackMemoryInfo(pointer);
+            (void)pthread_rwlock_unlock(&g_instance.stat_cxt.track_memory_lock);
+        }
+    }
+}
+
+class CtxAllocatorBase {
+public:
+    MemoryContext _ctx;
+
+    CtxAllocatorBase() : _ctx(CurrentMemoryContext) { Assert(!IsOptAllocSetContext(_ctx)); }
+    CtxAllocatorBase(MemoryContext ctx) : _ctx(ctx) { Assert(!IsOptAllocSetContext(_ctx)); }
+    CtxAllocatorBase(const CtxAllocatorBase &other) : _ctx(other._ctx) {}
+    CtxAllocatorBase(CtxAllocatorBase &&other) : _ctx(other._ctx) {}
+    CtxAllocatorBase &operator=(const CtxAllocatorBase &other) {
+        _ctx = other._ctx;
+        return *this;
+    }
+    CtxAllocatorBase &operator=(CtxAllocatorBase &&other) {
+        _ctx = other._ctx;
+        return *this;
+    }
+    void swap(CtxAllocatorBase &other) { std::swap(_ctx, other._ctx); }
+
+    MemoryContext get_context() const { return _ctx; }
+    constexpr static size_t max_size() { return SIZE_MAX; }
+};
+
+template <class T>
+class CtxAllocator : public CtxAllocatorBase {
+public:
+    using value_type = T;
+    using pointer = T *;
+    using const_pointer = const T *;
+    using reference = T &;
+    using const_reference = const T &;
+    using size_type = size_t;
+    using difference_type = std::ptrdiff_t;
+    using is_always_equal = std::false_type;
+
+    /* rebind allocator to type U */
+    template <class U>
+    struct rebind {
+        using other = CtxAllocator<U>;
+    };
+
+    using CtxAllocatorBase::CtxAllocatorBase;
+    CtxAllocator(const CtxAllocator &other) : CtxAllocatorBase(other) {}
+    CtxAllocator(CtxAllocator &&other) : CtxAllocatorBase(std::move(other)) {}
+    template <typename U>
+    CtxAllocator(const CtxAllocator<U> &other) : CtxAllocatorBase(other) {}
+    template <typename U>
+    CtxAllocator(CtxAllocator<U> &&other) : CtxAllocatorBase(std::move(other)) {}
+    CtxAllocator &operator=(const CtxAllocator &other) {
+        CtxAllocatorBase::operator=(other);
+        return *this;
+    }
+    template <typename U>
+    CtxAllocator &operator=(const CtxAllocator<U> &other) {
+        CtxAllocatorBase::operator=(other);
+        return *this;
+    }
+    CtxAllocator &operator=(CtxAllocator &&other) {
+        CtxAllocatorBase::operator=(std::move(other));
+        return *this;
+    }
+    template <typename U>
+    CtxAllocator &operator=(CtxAllocator<U> &&other) {
+        CtxAllocatorBase::operator=(std::move(other));
+        return *this;
+    }
+    using CtxAllocatorBase::swap;
+
+    /* return address of values */
+    static pointer address(reference value) {
+        return &value;
+    }
+    static const_pointer address(const_reference value) {
+        return &value;
+    }
+
+    /* allocate but don't initialize num elements of type T */
+    pointer allocate(size_t num, const void * = 0, MAKE_SOURCE_LOCATION(loc)) {
+        return (pointer)MemoryAllocFromContext(_ctx, num * sizeof(T), loc.file(), loc.line());
+    }
+    pointer allocate_zero(size_t num, const void * = 0, MAKE_SOURCE_LOCATION(loc)) {
+        return (pointer)MemoryContextAllocZeroDebug(_ctx, num * sizeof(T), loc.file(), loc.line());
+    }
+    pointer reallocate(pointer p, size_t num, MAKE_SOURCE_LOCATION(loc)) {
+        Assert(p != NULL);
+        Assert(p == (pointer)MAXALIGN(p));
+        Assert(!_ctx->isReset);
+
+        RemoveMemoryAllocInfo(p, _ctx);
+        const size_t s = sizeof(T) * num;
+        void *ret = (*_ctx->methods->realloc)(_ctx, p, 0, s, loc.file(), loc.line());
+        if (ret == NULL) {
+            ereport(ERROR, (errcode(ERRCODE_OUT_OF_LOGICAL_MEMORY),
+                errmsg("memory is temporarily unavailable"),
+                errdetail("Failed on request of size %lu bytes under queryid %lu in %s:%d.",
+                          s, u_sess->debug_query_id, loc.file(), loc.line())));
+        }
+        /* check if the session used memory is beyond the limitation */
+        if (unlikely(STATEMENT_MAX_MEM)) {
+            MemoryContextCheckSessionMemory(_ctx, s, loc.file(), loc.line());
+        }
+        InsertMemoryAllocInfo(ret, _ctx, loc.file(), loc.line(), s);
+        return (pointer)ret;
+    }
+
+    void construct(pointer p, const T &value) {
+        if (std::is_trivially_copy_constructible<T>::value ||
+            std::is_trivially_constructible<T, const T &>::value ||
+            !ann_helper::constructor_need_ctx<T> ||
+            CurrentMemoryContext == _ctx) {
+            new ((void *)p) T(value);
+        } else {
+            AutoContextSwitch mem_switch(CurrentMemoryContext);
+            new ((void *)p) T(value);
+        }
+    }
+    void construct(pointer p, T &&value) {
+        new ((void *)p) T(std::move(value));
+    }
+    template<class U, class... Args>
+    void construct(U *p, Args &&... args) {
+        if (std::is_trivially_constructible<U, Args...>::value ||
+            !ann_helper::constructor_need_ctx<T> ||
+            CurrentMemoryContext == _ctx) {
+            new ((void *)p) U(std::forward<Args>(args)...);
+        } else {
+            AutoContextSwitch mem_switch(CurrentMemoryContext);
+            new ((void *)p) U(std::forward<Args>(args)...);
+        }
+    }
+
+    void destroy(pointer p) {
+        ann_helper::optional_destroy(*p);
+        p->~T();
+    }
+
+    void deallocate(pointer p, size_t num) {
+#ifdef MEMORY_CONTEXT_CHECKING
+        bool is_sess_top = (u_sess == NULL) ? false : (_ctx == u_sess->top_mem_cxt);
+        if (_ctx != g_instance.instance_context && _ctx != t_thrd.top_mem_cxt && !is_sess_top) {
+            /* No prevent on top memory context as they may be sealed. */
+            if(unlikely(_ctx->is_sealed)) {
+                ereport(PANIC, (errcode(ERRCODE_INVALID_OPERATION),
+                        errmsg("invalid operation on memory context"),
+                        errdetail("Failed on operation on sealed context %s",  _ctx->name)));
+            }
+        }
+#endif
+        RemoveMemoryAllocInfo(p, _ctx);
+        (*_ctx->methods->free_p)(_ctx, p);
+    }
+};
+
+template <>
+struct CtxAllocator<void> : public CtxAllocatorBase {
+    using value_type = void;
+    using pointer = void *;
+    using const_pointer = const void *;
+
+    template<class U>
+    struct rebind {
+        using other = CtxAllocator<U>;
+    };
+
+    using CtxAllocatorBase::CtxAllocatorBase;
+    CtxAllocator(const CtxAllocator &other) : CtxAllocatorBase(other) {}
+    CtxAllocator(CtxAllocator &&other) : CtxAllocatorBase(std::move(other)) {}
+    template <typename U>
+    CtxAllocator(const CtxAllocator<U> &other) : CtxAllocatorBase(other) {}
+    template <typename U>
+    CtxAllocator(CtxAllocator<U> &&other) : CtxAllocatorBase(std::move(other)) {}
+    using CtxAllocatorBase::operator=;
+    template <typename U>
+    CtxAllocator &operator=(const CtxAllocator<U> &other) {
+        CtxAllocatorBase::operator=(other);
+        return *this;
+    }
+    using CtxAllocatorBase::swap;
+};
+
+/* return that all specializations of this allocator are interchangeable */
+template <class T1, class T2>
+inline bool operator==(const CtxAllocator<T1> &a, const CtxAllocator<T2> &b) {
+    return a._ctx == b._ctx;
+}
+template <class T1, class T2>
+inline bool operator!=(const CtxAllocator<T1> &a, const CtxAllocator<T2> &b) {
+    return a._ctx != b._ctx;
+}
+
+template <class T>
+class CurCtxAllocator {
+public:
+    using value_type = T;
+    using pointer = T *;
+    using const_pointer = const T *;
+    using reference = T &;
+    using const_reference = const T &;
+    using size_type = size_t;
+    using difference_type = std::ptrdiff_t;
+    using is_always_equal = std::true_type;
+
+    /* rebind allocator to type U */
+    template <class U>
+    struct rebind {
+        using other = CurCtxAllocator<U>;
+    };
+
+    /* return address of values */
+    static pointer address(reference value) {
+        return &value;
+    }
+    static const_pointer address(const_reference value) {
+        return &value;
+    }
+
+    CurCtxAllocator() = default;
+    CurCtxAllocator(const CurCtxAllocator &other) = default;
+    template <class U>
+    CurCtxAllocator(const CurCtxAllocator<U> &other) {};
+    CurCtxAllocator(CurCtxAllocator &&other) = default;
+    template <class U>
+    CurCtxAllocator(CurCtxAllocator<U> &&other) {};
+    CurCtxAllocator &operator=(const CurCtxAllocator &other) = default;
+    CurCtxAllocator &operator=(CurCtxAllocator &&other) = default;
+    template <class U>
+    CurCtxAllocator &operator=(const CurCtxAllocator<U> &other) { return *this; }
+    template <class U>
+    CurCtxAllocator &operator=(CurCtxAllocator<U> &&other) { return *this; }
+    void swap(CurCtxAllocator &other) {}
+
+    /* return maximum number of elements that can be allocated */
+    static size_t max_size() { return SIZE_MAX / sizeof(T); }
+
+    /* allocate but don't initialize num elements of type T */
+    static pointer allocate(size_t num, const void * = 0, MAKE_SOURCE_LOCATION(loc)) {
+        MemoryContext ctx = CurrentMemoryContext;
+        return (pointer)ctx->alloc_methods->alloc_from_context_debug(
+            ctx, num * sizeof(T), loc.file(), loc.line());
+    }
+    static pointer allocate_zero(size_t num, const void * = 0, MAKE_SOURCE_LOCATION(loc)) {
+        MemoryContext ctx = CurrentMemoryContext;
+        return (pointer)ctx->alloc_methods->alloc_zero_from_context_debug(
+            ctx, num * sizeof(T), loc.file(), loc.line());
+    }
+    static pointer reallocate(pointer p, size_t num, MAKE_SOURCE_LOCATION(loc)) {
+        return (pointer)repallocDebug(p, num * sizeof(T), loc.file(), loc.line());
+    }
+
+    FORCE_INLINE static void construct(pointer p, const T &value) {
+        new ((void *)p) T(value);
+    }
+    FORCE_INLINE void construct(pointer p, T &&value) {
+        new ((void *)p) T(std::move(value));
+    }
+    template<class U, class... Args>
+    FORCE_INLINE static void construct(U *p, Args &&... args) {
+        new ((void *)p) U(std::forward<Args>(args)...);
+    }
+
+    static void destroy(pointer p) {
+        ann_helper::optional_destroy(*p);
+        p->~T();
+    }
+
+    static void deallocate(pointer p, size_t num) {
+        pfree(p);
+    }
+};
+
+template <>
+struct CurCtxAllocator<void> {
+    using value_type = void;
+    using pointer = void *;
+    using const_pointer = const void *;
+    template<class U>
+    struct rebind {
+        using other = CurCtxAllocator<U>;
+    };
+    CurCtxAllocator() = default;
+    CurCtxAllocator(const CurCtxAllocator &other) = default;
+    template <class U>
+    CurCtxAllocator(const CurCtxAllocator<U> &other) {};
+    CurCtxAllocator(CurCtxAllocator &&other) = default;
+    template <class U>
+    CurCtxAllocator(CurCtxAllocator<U> &&other) {};
+    CurCtxAllocator &operator=(const CurCtxAllocator &other) = default;
+    CurCtxAllocator &operator=(CurCtxAllocator &&other) = default;
+    template <class U>
+    CurCtxAllocator &operator=(const CurCtxAllocator<U> &other) { return *this; }
+    template <class U>
+    CurCtxAllocator &operator=(CurCtxAllocator<U> &&other) { return *this; }
+    static void swap(const CurCtxAllocator &other) {}
+};
+
+template <class T1, class T2>
+constexpr inline bool operator==(const CurCtxAllocator<T1> &, const CurCtxAllocator<T2> &) {
+    return true;
+}
+template <class T1, class T2>
+constexpr inline bool operator!=(const CurCtxAllocator<T1> &, const CurCtxAllocator<T2> &) {
+    return false;
+}
+
+template <class T>
+class HugeCtxAllocator : public CtxAllocatorBase {
+    constexpr static size_t max_alloc_size = 0x3ffffffful;
+public:
+    using value_type = T;
+    using pointer = T *;
+    using const_pointer = const T *;
+    using reference = T &;
+    using const_reference = const T &;
+    using size_type = size_t;
+    using difference_type = std::ptrdiff_t;
+    using is_always_equal = std::false_type;
+
+    /* rebind allocator to type U */
+    template <class U>
+    struct rebind {
+        using other = HugeCtxAllocator<U>;
+    };
+
+    using CtxAllocatorBase::CtxAllocatorBase;
+    HugeCtxAllocator(const HugeCtxAllocator &other) : CtxAllocatorBase(other) {}
+    HugeCtxAllocator(HugeCtxAllocator &&other) : CtxAllocatorBase(std::move(other)) {}
+    template <typename U>
+    HugeCtxAllocator(const HugeCtxAllocator<U> &other) : CtxAllocatorBase(other) {}
+    template <typename U>
+    HugeCtxAllocator(HugeCtxAllocator<U> &&other) : CtxAllocatorBase(std::move(other)) {}
+    using CtxAllocatorBase::operator=;
+    template <typename U>
+    HugeCtxAllocator &operator=(const HugeCtxAllocator<U> &other) {
+        CtxAllocatorBase::operator=(other);
+        return *this;
+    }
+    void swap(HugeCtxAllocator& other) noexcept {
+        CtxAllocatorBase::swap(other);
+    }
+    using CtxAllocatorBase::swap;
+
+    pointer allocate(size_t num, const void *hint = 0, MAKE_SOURCE_LOCATION(loc)) {
+        const size_t s = num * sizeof(T);
+        return s <= max_alloc_size ?
+            (pointer)MemoryAllocFromContext(_ctx, s, loc.file(), loc.line()) :
+            (pointer)MemoryContextAllocHugeDebug(_ctx, s, loc.file(), loc.line());
+    }
+    pointer allocate_zero(size_t num, const void * = 0, MAKE_SOURCE_LOCATION(loc)) {
+        const size_t s = num * sizeof(T);
+        return s <= max_alloc_size ?
+            (pointer)MemoryContextAllocZeroDebug(_ctx, s, loc.file(), loc.line()) :
+            (pointer)MemoryContextAllocHugeZeroDebug(_ctx, s, loc.file(), loc.line());
+    }
+    pointer reallocate(pointer p, size_t num, MAKE_SOURCE_LOCATION(loc)) {
+        Assert(p != NULL);
+        Assert(p == (pointer)MAXALIGN(p));
+        Assert(!_ctx->isReset);
+        const size_t s = num * sizeof(T);
+        RemoveMemoryAllocInfo(p, _ctx);
+        void *ret = (*_ctx->methods->realloc)(_ctx, p, 0, s, loc.file(), loc.line());
+        if (ret == NULL) {
+            ereport(ERROR, (errcode(ERRCODE_OUT_OF_LOGICAL_MEMORY),
+                errmsg("memory is temporarily unavailable"),
+                errdetail("Failed on request of size %lu bytes under queryid %lu in %s:%d.",
+                          s, u_sess->debug_query_id, loc.file(), loc.line())));
+        }
+#ifdef MEMORY_CONTEXT_CHECKING
+        if (s <= max_alloc_size) {
+            MemoryContextCheckMaxSize(_ctx, s, loc.file(), loc.line());
+        }
+#endif  /* MEMORY_CONTEXT_CHECKING */
+        if (unlikely(STATEMENT_MAX_MEM)) {
+            MemoryContextCheckSessionMemory(_ctx, s, loc.file(), loc.line());
+        }
+        InsertMemoryAllocInfo(ret, _ctx, loc.file(), loc.line(), s);
+        return (pointer)ret;
+    }
+
+    void construct(pointer p, const T &value) {
+        if (std::is_trivially_copy_constructible<T>::value ||
+            std::is_trivially_constructible<T, const T &>::value ||
+            !ann_helper::constructor_need_ctx<T> ||
+            CurrentMemoryContext == _ctx) {
+            new ((void *)p) T(value);
+        } else {
+            AutoContextSwitch mem_switch(CurrentMemoryContext);
+            new ((void *)p) T(value);
+        }
+    }
+    void construct(pointer p, T &&value) {
+        new ((void *)p) T(std::move(value));
+    }
+    template<class U, class... Args>
+    void construct(U *p, Args &&... args) {
+        if (std::is_trivially_constructible<U, Args...>::value ||
+            !ann_helper::constructor_need_ctx<T> ||
+            CurrentMemoryContext == _ctx) {
+            new ((void *)p) U(std::forward<Args>(args)...);
+        } else {
+            AutoContextSwitch mem_switch(CurrentMemoryContext);
+            new ((void *)p) U(std::forward<Args>(args)...);
+        }
+    }
+
+    void destroy(pointer p) {
+        ann_helper::optional_destroy(*p);
+        p->~T();
+    }
+
+    void deallocate(pointer p, size_t num) {
+#ifdef MEMORY_CONTEXT_CHECKING
+        bool is_sess_top = (u_sess == NULL) ? false : (_ctx == u_sess->top_mem_cxt);
+        if (_ctx != g_instance.instance_context && _ctx != t_thrd.top_mem_cxt && !is_sess_top) {
+            /* No prevent on top memory context as they may be sealed. */
+            if(unlikely(_ctx->is_sealed)) {
+                ereport(PANIC, (errcode(ERRCODE_INVALID_OPERATION),
+                        errmsg("invalid operation on memory context"),
+                        errdetail("Failed on operation on sealed context %s",  _ctx->name)));
+            }
+        }
+#endif
+        RemoveMemoryAllocInfo(p, _ctx);
+        (*_ctx->methods->free_p)(_ctx, p);
+    }
+};
+
+template <class T>
+void swap(HugeCtxAllocator<T>& a, HugeCtxAllocator<T>& b) noexcept {
+    a.swap(b);
+}
+
+template <>
+struct HugeCtxAllocator<void> : public CtxAllocatorBase {
+public:
+    using value_type = void;
+    using pointer = void *;
+    using const_pointer = const void *;
+
+    template<class U>
+    struct rebind {
+        using other = CtxAllocator<U>;
+    };
+
+    using CtxAllocatorBase::CtxAllocatorBase;
+    HugeCtxAllocator(const HugeCtxAllocator &other) : CtxAllocatorBase(other) {}
+    HugeCtxAllocator(HugeCtxAllocator &&other) : CtxAllocatorBase(std::move(other)) {}
+    template <typename U>
+    HugeCtxAllocator(const HugeCtxAllocator<U> &other) : CtxAllocatorBase(other) {}
+    template <typename U>
+    HugeCtxAllocator(HugeCtxAllocator<U> &&other) : CtxAllocatorBase(std::move(other)) {}
+    using CtxAllocatorBase::operator=;
+    template <typename U>
+    HugeCtxAllocator &operator=(const HugeCtxAllocator<U> &other) {
+        CtxAllocatorBase::operator=(other);
+        return *this;
+    }
+    using CtxAllocatorBase::swap;
+};
+
+template <class T1, class T2>
+inline bool operator==(const HugeCtxAllocator<T1> &a, const HugeCtxAllocator<T2> &b) {
+    return a._ctx == b._ctx;
+}
+template <class T1, class T2>
+inline bool operator!=(const HugeCtxAllocator<T1> &a, const HugeCtxAllocator<T2> &b) {
+    return a._ctx != b._ctx;
+}
+
+namespace internal {
+template <typename>
+constexpr std::false_type has_alloc0_h(size_t, long);
+template <typename Allocator>
+constexpr std::false_type has_realloc_h(typename Allocator::pointer, size_t, long);
+template <typename>
+constexpr std::false_type has_context_h(long);
+template <typename Allocator>
+constexpr auto has_alloc0_h(size_t s, int) ->
+    decltype(std::declval<Allocator>().allocate_zero(s), std::true_type{});
+template <typename Allocator>
+constexpr auto has_realloc_h(typename Allocator::pointer p, size_t s, int) ->
+    decltype(std::declval<Allocator>().reallocate(p, s), std::true_type{});
+template <typename Allocator>
+constexpr auto has_context_h(int) -> decltype(std::declval<Allocator>().get_context(), std::true_type{});
+template <typename Allocator>
+using has_alloc0 = decltype(has_alloc0_h<Allocator>(0, 0));
+template <typename Allocator>
+using has_realloc = decltype(has_realloc_h<Allocator>(NULL, 0, 0));
+template <typename Allocator>
+using has_context = decltype(has_context_h<Allocator>(0));
+
+template <typename Allocator>
+FORCE_INLINE typename Allocator::pointer alloc0(Allocator &allocator, size_t s,
+                                                std::true_type const &, const SourceLocation &loc)
+    { return allocator.allocate_zero(s, 0, loc); }
+template <typename Allocator>
+typename Allocator::pointer alloc0(Allocator &allocator, size_t s,
+                                   std::false_type const &, const SourceLocation &loc)
+{
+    static_assert(!std::is_same<Allocator,Allocator>::value,
+                  "no alloc0 (disable the check if you are using stl or customized allocators)");
+    auto *res = allocator.allocate(s, 0, loc);
+    memset(res, 0, s * sizeof(typename Allocator::value_type));
+    return res;
+}
+template <typename Allocator>
+FORCE_INLINE typename Allocator::pointer realloc(Allocator &allocator, typename Allocator::pointer p,
+                                    size_t s, std::true_type const &, const SourceLocation &loc)
+    { return allocator.reallocate(p, s, loc); }
+template <typename Allocator>
+typename Allocator::pointer realloc(Allocator &allocator, typename Allocator::pointer p,
+                                    size_t s, std::false_type const &, const SourceLocation &loc)
+{
+    static_assert(!std::is_same<Allocator,Allocator>::value,
+                  "no realloc (disable the check if you are using stl or customized allocators)");
+    auto *res = allocator.allocate(s, loc);
+    memcpy(res, p, s * sizeof(typename Allocator::value_type));
+    allocator.deallocate(p, s);
+    return res;
+}
+
+template <typename Allocator>
+FORCE_INLINE MemoryContext get_context(const Allocator &allocator, std::true_type const &)
+    { return allocator.get_context(); }
+template <typename Allocator>
+FORCE_INLINE MemoryContext get_context(const Allocator &allocator, std::false_type const &)
+    { return CurrentMemoryContext; }
+} /* internal */
+
+template <typename Allocator>
+FORCE_INLINE typename Allocator::pointer alloc0(Allocator &allocator, size_t s, MAKE_SOURCE_LOCATION(loc))
+    { return internal::alloc0(allocator, s, internal::has_alloc0<Allocator>{}, loc); }
+template <typename Allocator>
+FORCE_INLINE typename Allocator::pointer realloc(Allocator &allocator, typename Allocator::pointer p,
+                                                 size_t s, MAKE_SOURCE_LOCATION(loc))
+    { return internal::realloc(allocator, p, s, internal::has_realloc<Allocator>{}, loc); }
+template <typename Allocator>
+FORCE_INLINE MemoryContext get_context(Allocator &allocator)
+    { return internal::get_context(allocator, internal::has_context<Allocator>{}); }
+} /* namespace vtl */
+
+template <typename T> using DEFAULT_ALLOCATOR = vtl::CurCtxAllocator<T>;
+template <typename T> using HUGE_ALLOCATOR = vtl::HugeCtxAllocator<T>;
+template <typename T> using CONTEXT_ALLOCATOR = vtl::CtxAllocator<T>;
+#else
+#include <memory>
+template <typename T> using DEFAULT_ALLOCATOR = std::allocator<T>;
+template <typename T> using HUGE_ALLOCATOR = std::allocator<T>;
+template <typename T> using CONTEXT_ALLOCATOR = std::allocator<T>;
+#endif /* USE_INTERNAL_MEMORY */
+#endif /* CONTAINER_ALLOCATOR_H */

@@ -1,0 +1,5186 @@
+CREATE DATABASE c_utf8mb4_b_db WITH ENCODING 'utf8mb4' LC_COLLATE='C' LC_CTYPE='C' DBCOMPATIBILITY 'B';
+\c c_utf8mb4_b_db
+-- test _charset syntax
+-- -- test _charset COMPATIBILITY
+SET b_format_behavior_compat_options = '';
+SHOW b_format_behavior_compat_options;
+ b_format_behavior_compat_options 
+----------------------------------
+ 
+(1 row)
+
+SELECT _gbk'ABCD' = _utf8mb4'ABCD'; -- ERROR
+ERROR:  type "_gbk" does not exist
+LINE 1: SELECT _gbk'ABCD' = _utf8mb4'ABCD';
+               ^
+CREATE TABLE test_charset_syntax(_utf8 text);
+DROP TABLE test_charset_syntax;
+SET b_format_behavior_compat_options = 'all';
+SHOW b_format_behavior_compat_options;
+ b_format_behavior_compat_options 
+----------------------------------
+ all
+(1 row)
+
+SELECT _gbk'ABCD' = _utf8mb4'ABCD';
+ ?column? 
+----------
+ t
+(1 row)
+
+CREATE TABLE test_charset_syntax(_utf8 text); -- ERROR
+ERROR:  syntax error at or near "_utf8"
+LINE 1: CREATE TABLE test_charset_syntax(_utf8 text);
+                                         ^
+CREATE TABLE test_charset_syntax(_column text);
+DROP TABLE test_charset_syntax;
+-- -- test _charset + expression
+SELECT _utf8mb4 10; -- ERROR
+ERROR:  syntax error at or near "10"
+LINE 1: SELECT _utf8mb4 10;
+                        ^
+SELECT _utf8mb4 CONCAT('高斯', 'DB'); -- ERROR
+ERROR:  syntax error at or near "CONCAT"
+LINE 1: SELECT _utf8mb4 CONCAT('高斯', 'DB');
+                        ^
+SELECT _utf8_mb4'ABCD' = _Utf-8mB4'ABCD'; -- ERROR
+ERROR:  syntax error at or near "'ABCD'"
+LINE 1: SELECT _utf8_mb4'ABCD' = _Utf-8mB4'ABCD';
+                                          ^
+SELECT __utf8mb4'ABCD' = __Utf8mB4'ABCD'; -- special
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _gbk'ABCD' = _GbK'ABCD';
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _binary E'', _binary E'' IS NULL;
+ ?column? | ?column? 
+----------+----------
+ \x       | f
+(1 row)
+
+SELECT _binary E'\\xe9ab98e696af';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _utf8mb4 E'\\xe9ab98e696af';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _gbk E'\\xe9ab98e696af';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _utf8mb4 X'\\xe9ab98e696af'; -- ERROR, X'string' equal 'string'
+ERROR:  "\" is not a valid hexadecimal digit
+LINE 1: SELECT _utf8mb4 X'\\xe9ab98e696af';
+                        ^
+SELECT _binary X'', _binary X'' IS NULL;
+ ?column? | ?column? 
+----------+----------
+ \x       | f
+(1 row)
+
+SELECT _binary X'E9AB98E696AF';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _utf8mb4 X'E9AB98E696AF';
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT _gbk X'E9AB98E696AF';
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _binary B'', _binary B'' IS NULL;
+ ?column? | ?column? 
+----------+----------
+ \x       | f
+(1 row)
+
+SELECT _binary B'0';
+ ?column? 
+----------
+ \x00
+(1 row)
+
+SELECT _binary B'111010011010101110011000111001101001011010101111';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _utf8mb4 B'111010011010101110011000111001101001011010101111';
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT _gbk B'111010011010101110011000111001101001011010101111';
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _utf8mb4 B'111010011010101110011000111001101001011010101111高斯'; -- ERROR
+ERROR:  "�" is not a valid binary digit
+LINE 1: SELECT _utf8mb4 B'111010011010101110011000111001101001011010...
+                        ^
+SELECT _binary X'000D' | X'0BC0'; -- ERROR not support yet
+ERROR:  operator does not exist: bytea | bit
+LINE 1: SELECT _binary X'000D' | X'0BC0';
+                               ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+-- ------------------------------------------
+-- SET NAMES utf8mb4;
+SET NAMES 'utf8mb4';
+SHOW client_encoding;
+ client_encoding 
+-----------------
+ UTF8
+(1 row)
+
+SHOW server_encoding;
+ server_encoding 
+-----------------
+ UTF8
+(1 row)
+
+SHOW character_set_connection;
+ character_set_connection 
+--------------------------
+ UTF8
+(1 row)
+
+SHOW collation_connection;
+ collation_connection 
+----------------------
+ utf8mb4_general_ci
+(1 row)
+
+-- -- CONST charset and collation
+SELECT _utf8mb4'高斯' COLLATE gbk_chinese_ci; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT _utf8mb4'高斯' COLLATE gbk_chinese_ci;
+                              ^
+SELECT _utf8mb4'高斯' COLLATE 'binary'; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT _utf8mb4'高斯' COLLATE 'binary';
+                              ^
+SELECT _utf8mb4'高斯' COLLATE "zh_CN.utf8"; -- support origin collation
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT _utf8mb4'高斯' COLLATE "C"; -- support origin collation
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT _gbk'高斯' COLLATE gbk_chinese_ci;
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _gbk'高斯' COLLATE 'binary'; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "GBK"
+LINE 1: SELECT _gbk'高斯' COLLATE 'binary';
+                          ^
+SELECT _gbk'高斯' COLLATE "zh_CN.gbk"; -- ERROR
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _gbk'高斯' COLLATE "C"; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GBK" which is different from server_encoding
+LINE 1: SELECT _gbk'高斯' COLLATE "C";
+                          ^
+SELECT _gb18030'高斯' COLLATE gb18030_chinese_ci;
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _gb18030'高斯' COLLATE gbk_chinese_ci; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "GB18030"
+LINE 1: SELECT _gb18030'高斯' COLLATE gbk_chinese_ci;
+                              ^
+SELECT _gb18030'高斯' COLLATE 'binary'; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "GB18030"
+LINE 1: SELECT _gb18030'高斯' COLLATE 'binary';
+                              ^
+SELECT _gb18030'高斯' COLLATE "zh_CN.gb18030"; -- ERROR
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _gb18030'高斯' COLLATE "C"; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GB18030" which is different from server_encoding
+LINE 1: SELECT _gb18030'高斯' COLLATE "C";
+                              ^
+SELECT _binary'高斯' COLLATE gbk_chinese_ci; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for binary type
+LINE 1: SELECT _binary'高斯' COLLATE gbk_chinese_ci;
+                             ^
+SELECT _binary'高斯' COLLATE 'binary';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _binary'高斯' COLLATE "zh_CN.utf8"; -- ERROR
+ERROR:  COLLATION "zh_CN.utf8" is not valid for binary type
+LINE 1: SELECT _binary'高斯' COLLATE "zh_CN.utf8";
+                             ^
+SELECT _binary'高斯' COLLATE "C"; -- ERROR
+ERROR:  COLLATION "C" is not valid for binary type
+LINE 1: SELECT _binary'高斯' COLLATE "C";
+                             ^
+SELECT _binary'' COLLATE utf8mb4_bin; -- ERROR
+ERROR:  COLLATION "utf8mb4_bin" is not valid for binary type
+LINE 1: SELECT _binary'' COLLATE utf8mb4_bin;
+                         ^
+SELECT (_utf8mb4'高斯' COLLATE utf8mb4_bin) COLLATE gbk_chinese_ci; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT (_utf8mb4'高斯' COLLATE utf8mb4_bin) COLLATE gbk_chin...
+                                                    ^
+SELECT (_utf8mb4'高斯' COLLATE utf8mb4_bin) COLLATE 'binary'; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT (_utf8mb4'高斯' COLLATE utf8mb4_bin) COLLATE 'binary'...
+                                                    ^
+SELECT (_utf8mb4'高斯' COLLATE utf8mb4_bin) COLLATE "zh_CN.utf8"; -- support origin collation
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT (_utf8mb4'高斯' COLLATE utf8mb4_bin) COLLATE "C"; -- support origin collation
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT (_utf8mb4'高斯' COLLATE utf8mb4_bin) COLLATE utf8mb4_unicode_ci;
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT (_gbk'高斯' COLLATE "C") COLLATE utf8mb4_bin; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GBK" which is different from server_encoding
+LINE 1: SELECT (_gbk'高斯' COLLATE "C") COLLATE utf8mb4_bin;
+                           ^
+SELECT (_gbk'高斯' COLLATE "C") COLLATE gbk_chinese_ci; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GBK" which is different from server_encoding
+LINE 1: SELECT (_gbk'高斯' COLLATE "C") COLLATE gbk_chinese_ci;
+                           ^
+SELECT (_binary'高斯' COLLATE "binary") COLLATE utf8mb4_bin; -- ERROR
+ERROR:  COLLATION "utf8mb4_bin" is not valid for binary type
+LINE 1: SELECT (_binary'高斯' COLLATE "binary") COLLATE utf8mb4_bin;
+                                                ^
+-- -- CONST collation only
+SELECT X'E9AB98E696AF' COLLATE "utf8mb4_unicode_ci"; -- ERROR
+ERROR:  COLLATION "utf8mb4_unicode_ci" is not valid for binary type
+LINE 1: SELECT X'E9AB98E696AF' COLLATE "utf8mb4_unicode_ci";
+                               ^
+SELECT X'E9AB98E696AF' COLLATE "binary";
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT B'111010011010101110011000111001101001011010101111' COLLATE "utf8mb4_unicode_ci"; -- ERROR
+ERROR:  COLLATION "utf8mb4_unicode_ci" is not valid for binary type
+LINE 1: ...111010011010101110011000111001101001011010101111' COLLATE "u...
+                                                             ^
+SELECT B'111010011010101110011000111001101001011010101111' COLLATE "binary";
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT 1 COLLATE "utf8mb4_unicode_ci"; -- not support yet
+ERROR:  collations are not supported by type integer
+LINE 1: SELECT 1 COLLATE "utf8mb4_unicode_ci";
+                 ^
+SELECT 1 COLLATE "binary"; -- not support yet
+ERROR:  collations are not supported by type integer
+LINE 1: SELECT 1 COLLATE "binary";
+                 ^
+SELECT CAST('高斯' AS bytea) COLLATE "utf8mb4_unicode_ci"; -- ERROR
+ERROR:  COLLATION "utf8mb4_unicode_ci" is not valid for binary type
+LINE 1: SELECT CAST('高斯' AS bytea) COLLATE "utf8mb4_unicode_ci";
+                                     ^
+CONTEXT:  referenced column: bytea
+SELECT CAST('高斯' AS bytea) COLLATE "binary";
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CAST('E9AB98E696AF' AS blob) COLLATE "utf8mb4_unicode_ci"; -- ERROR
+ERROR:  COLLATION "utf8mb4_unicode_ci" is not valid for binary type
+LINE 1: SELECT CAST('E9AB98E696AF' AS blob) COLLATE "utf8mb4_unicode...
+                                            ^
+CONTEXT:  referenced column: blob
+SELECT CAST('E9AB98E696AF' AS blob) COLLATE "binary";
+     blob     
+--------------
+ E9AB98E696AF
+(1 row)
+
+SELECT '高斯' COLLATE "utf8mb4_unicode_ci";
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT '高斯' COLLATE "gbk_chinese_ci"; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT '高斯' COLLATE "gbk_chinese_ci";
+                      ^
+SELECT '高斯' COLLATE "gb18030_chinese_ci"; -- ERROR
+ERROR:  COLLATION "gb18030_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT '高斯' COLLATE "gb18030_chinese_ci";
+                      ^
+SELECT '高斯' COLLATE "binary"; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT '高斯' COLLATE "binary";
+                      ^
+-- test CollateExpr
+CREATE TABLE t_collate_expr(
+    ftext text collate utf8mb4_bin,
+    fbytea bytea,
+    fvbit varbit(8),
+    fint int
+);
+-- -- test INSERT
+INSERT INTO t_collate_expr(ftext) VALUES('01100001' collate "binary"); -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: ...SERT INTO t_collate_expr(ftext) VALUES('01100001' collate "b...
+                                                             ^
+CONTEXT:  referenced column: ftext
+INSERT INTO t_collate_expr(ftext) VALUES('01100001' collate gbk_bin); -- ERROR
+ERROR:  COLLATION "gbk_bin" is not valid for CHARACTER SET "UTF8"
+LINE 1: ...SERT INTO t_collate_expr(ftext) VALUES('01100001' collate gb...
+                                                             ^
+CONTEXT:  referenced column: ftext
+INSERT INTO t_collate_expr(ftext) VALUES('01100001' collate utf8mb4_unicode_ci);
+INSERT INTO t_collate_expr(ftext) VALUES('01100001' collate gbk_bin collate utf8mb4_unicode_ci); -- only reserve top collate
+INSERT INTO t_collate_expr(fbytea) VALUES('01100001' collate "binary"); -- do not check collate
+INSERT INTO t_collate_expr(fbytea) VALUES('01100001' collate gbk_bin); -- do not check collate
+INSERT INTO t_collate_expr(fbytea) VALUES('01100001' collate utf8mb4_unicode_ci);
+INSERT INTO t_collate_expr(fvbit) VALUES('01100001' collate "binary"); -- do not check collate
+INSERT INTO t_collate_expr(fvbit) VALUES('01100001' collate gbk_bin); -- do not check collate
+INSERT INTO t_collate_expr(fvbit) VALUES('01100001' collate utf8mb4_unicode_ci);
+INSERT INTO t_collate_expr(fint) VALUES('01100001' collate "binary"); -- do not check collate
+INSERT INTO t_collate_expr(fint) VALUES('01100001' collate gbk_bin); -- do not check collate
+INSERT INTO t_collate_expr(fint) VALUES('01100001' collate utf8mb4_unicode_ci);
+INSERT INTO t_collate_expr(fbytea) VALUES('01100001' collate gbk_bin collate utf8mb4_unicode_ci); -- do not check collate
+INSERT INTO t_collate_expr(fbytea) VALUES('01100001' collate utf8mb4_general_ci collate gbk_bin); -- do not check collate
+INSERT INTO t_collate_expr(fvbit) VALUES('01100001' collate gbk_bin collate utf8mb4_unicode_ci); -- do not check collate
+INSERT INTO t_collate_expr(fvbit) VALUES('01100001' collate utf8mb4_general_ci collate gbk_bin); -- do not check collate
+INSERT INTO t_collate_expr(fint) VALUES('01100001' collate gbk_bin collate utf8mb4_unicode_ci); -- do not check collate
+INSERT INTO t_collate_expr(fint) VALUES('01100001' collate utf8mb4_general_ci collate gbk_bin); -- do not check collate
+-- -- test limit
+select 1 from t_collate_expr limit(to_hex('11') collate "binary");
+ ?column? 
+----------
+(0 rows)
+
+select 1 from t_collate_expr limit(to_hex('11') collate gbk_bin);
+ ?column? 
+----------
+(0 rows)
+
+select 1 from t_collate_expr limit(to_hex('11') collate utf8mb4_unicode_ci);
+ ?column? 
+----------
+(0 rows)
+
+select 1 from t_collate_expr limit(to_hex('11') collate gbk_bin collate utf8mb4_unicode_ci);  -- do not check collate
+ ?column? 
+----------
+(0 rows)
+
+DROP TABLE t_collate_expr;
+-- 中文 const charset
+SELECT CAST('高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CAST(_binary'高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CAST(_utf8mb4'高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CAST(_gbk'高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _binary'高斯';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _utf8mb4'高斯';
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT _gbk'高斯';
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _gb18030'高斯';
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT _gbk X'e9ab98e696af';
+ ?column? 
+----------
+ 楂樻柉
+(1 row)
+
+SELECT CONVERT_TO(_utf8mb4'楂樻柉', 'gbk');
+   convert_to   
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CONVERT_TO(_utf8mb4'高斯', 'gbk');
+ convert_to 
+------------
+ \xb8dfcbb9
+(1 row)
+
+-- test datatype
+-- -- ARRAY TEST
+SELECT array[_utf8mb4'高斯'];
+ array  
+--------
+ {高斯}
+(1 row)
+
+SELECT array[_gbk'高斯'];
+  array   
+----------
+ {楂樻柉}
+(1 row)
+
+create table tarray(a text[]);
+insert into tarray values(array[_utf8mb4'高斯']);
+insert into tarray values(array[_gbk'高斯']); -- ERROR
+ERROR:  multi character set for datatype '_text' is not supported
+CONTEXT:  referenced column: a
+insert into tarray values(_utf8mb4'{高斯}'::text[]);
+insert into tarray values(_gbk'{高斯}'::text[]); -- ERROR
+ERROR:  multi character set for datatype '_text' is not supported
+CONTEXT:  referenced column: a
+drop table tarray;
+-- -- JSON TEST
+SELECT _utf8mb4'"高斯"'::json;
+  json  
+--------
+ "高斯"
+(1 row)
+
+SELECT  _gbk'"高斯"'::json; -- ERROR
+ERROR:  multi character set for datatype 'json' is not supported
+create table tjson(a json);
+insert into tjson values(_utf8mb4'"高斯"'::json);
+insert into tjson values(_gbk'"高斯"'::json); -- ERROR
+ERROR:  multi character set for datatype 'json' is not supported
+drop table tjson;
+-- -- XML
+SELECT xmlelement(NAME a, _utf8mb4'高斯');
+ xmlelement  
+-------------
+ <a>高斯</a>
+(1 row)
+
+SELECT xmlelement(NAME a, _gbk'高斯'); -- ERROR
+ERROR:  multi character set for datatype 'xml' is not supported
+create table txml(a xml);
+insert into txml values(_utf8mb4'高斯'::xml);
+insert into txml values(_gbk'高斯'::xml); -- ERROR
+ERROR:  multi character set for datatype 'xml' is not supported
+drop table txml;
+-- -- tsvector
+SELECT to_tsvector( _utf8mb4'高斯');
+ to_tsvector 
+-------------
+ '高斯':1
+(1 row)
+
+SELECT to_tsvector(_gbk'高斯'); -- ERROR
+ERROR:  multi character set for datatype 'tsvector' is not supported
+create table ttsvector(a tsvector);
+insert into ttsvector values(_utf8mb4'高斯'::tsvector);
+insert into ttsvector values(_gbk'高斯'::tsvector); -- ERROR
+ERROR:  multi character set for datatype 'tsvector' is not supported
+drop table ttsvector;
+-- -- hll
+SELECT hll_hash_text( _utf8mb4'高斯');
+    hll_hash_text     
+----------------------
+ -1822827932029241973
+(1 row)
+
+SELECT hll_hash_text(_gbk'高斯'); -- ERROR
+ERROR:  multi character set for datatype 'hll_hashval' is not supported
+-- test implicit type converion
+select _gbk'111' collate "gbk_bin" = 111;
+ ?column? 
+----------
+ t
+(1 row)
+
+-- -- 中文 const compare
+-- -- -- same charset & explicit collation
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_bin" and "utf8mb4_unicode_ci"
+LINE 1: ...b4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE ut...
+                                                             ^
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_general_ci = _utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_general_ci" and "utf8mb4_unicode_ci"
+LINE 1: ...DB' COLLATE utf8mb4_general_ci = _utf8mb4'高斯DB' COLLATE ut...
+                                                             ^
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE "C"; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_bin" and "C"
+LINE 1: ...b4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE "C...
+                                                             ^
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE "zh_CN.utf8"; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_bin" and "zh_CN.utf8"
+LINE 1: ...b4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE "z...
+                                                             ^
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE "DEFAULT"; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_bin" and "default"
+LINE 1: ...b4'高斯DB' COLLATE utf8mb4_bin = _utf8mb4'高斯DB' COLLATE "D...
+                                                             ^
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = '高斯DB' COLLATE utf8mb4_unicode_ci; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_bin" and "utf8mb4_unicode_ci"
+LINE 1: ...T _utf8mb4'高斯DB' COLLATE utf8mb4_bin = '高斯DB' COLLATE ut...
+                                                             ^
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = '高斯DB' COLLATE utf8mb4_bin;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = '高斯DB' COLLATE "C"; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_unicode_ci" and "C"
+LINE 1: ...mb4'高斯db' COLLATE utf8mb4_unicode_ci = '高斯DB' COLLATE "C...
+                                                             ^
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = '高斯DB' COLLATE "zh_CN.utf8"; -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_unicode_ci" and "zh_CN.utf8"
+LINE 1: ...mb4'高斯db' COLLATE utf8mb4_unicode_ci = '高斯DB' COLLATE "z...
+                                                             ^
+SELECT _gbk'高斯db' COLLATE gbk_bin = _gbk'高斯DB' COLLATE gbk_chinese_ci; -- ERROR
+ERROR:  collation mismatch between explicit collations "gbk_bin" and "gbk_chinese_ci"
+LINE 1: ...ELECT _gbk'高斯db' COLLATE gbk_bin = _gbk'高斯DB' COLLATE gb...
+                                                             ^
+SELECT _gb18030'高斯db' COLLATE gb18030_bin = _gbk'高斯DB' COLLATE gbk_chinese_ci; -- ERROR
+ERROR:  collation mismatch between collations "gb18030_bin" and "gbk_chinese_ci"
+LINE 1: ...' COLLATE gb18030_bin = _gbk'高斯DB' COLLATE gbk_chinese_ci;
+                                                                       ^
+-- -- -- same charset & implicit collation
+SELECT _utf8mb4'高斯DB' = '高斯DB';
+ ?column? 
+----------
+ t
+(1 row)
+
+-- -- -- diff charset & explicit collation
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _gbk'高斯DB' COLLATE gbk_chinese_ci;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _gbk'高斯DB' COLLATE gbk_bin;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _gb18030'高斯DB' COLLATE gb18030_chinese_ci;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _gb18030'高斯DB' COLLATE gb18030_bin;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _binary'高斯DB' COLLATE 'binary'; -- not support yet
+ERROR:  operator does not exist: text = bytea
+LINE 1: ...ELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _binary'...
+                                                             ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _gbk'高斯db' COLLATE gbk_chinese_ci;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _gbk'高斯DB' COLLATE gbk_bin;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _gb18030'高斯db' COLLATE gb18030_chinese_ci;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _gb18030'高斯DB' COLLATE gb18030_bin;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gbk'高斯db' COLLATE gbk_chinese_ci = _gb18030'高斯DB' COLLATE gb18030_chinese_ci; -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...bk_chinese_ci = _gb18030'高斯DB' COLLATE gb18030_chinese_ci;
+                                                                       ^
+SELECT _gbk'高斯db' COLLATE gbk_chinese_ci = _gb18030'高斯DB' COLLATE gb18030_bin; -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_bin"
+LINE 1: ...LLATE gbk_chinese_ci = _gb18030'高斯DB' COLLATE gb18030_bin;
+                                                                       ^
+SELECT _gbk'高斯DB' COLLATE gbk_bin = _gb18030'高斯db' COLLATE gb18030_chinese_ci; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_chinese_ci"
+LINE 1: ...LLATE gbk_bin = _gb18030'高斯db' COLLATE gb18030_chinese_ci;
+                                                                       ^
+SELECT _gbk'高斯DB' COLLATE gbk_bin = _gb18030'高斯DB' COLLATE gb18030_bin; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_bin"
+LINE 1: ...DB' COLLATE gbk_bin = _gb18030'高斯DB' COLLATE gb18030_bin;
+                                                                      ^
+-- -- -- diff charset & implicit collation
+SELECT _utf8mb4'高斯DB' = _binary'高斯DB';
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT _utf8mb4'高斯DB' = _binary'高斯DB';
+                                ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT _utf8mb4'高斯DB' = _gbk'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = _gb18030'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gbk'高斯DB' = '高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gbk'高斯DB' = _utf8mb4'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gbk'高斯DB' = _binary'高斯DB'; -- not support yet
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT _gbk'高斯DB' = _binary'高斯DB';
+                            ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT _gbk'高斯DB' = _gb18030'高斯DB'; -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: SELECT _gbk'高斯DB' = _gb18030'高斯DB';
+                                               ^
+SELECT _gb18030'高斯DB' = '高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gb18030'高斯DB' = _utf8mb4'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gb18030'高斯DB' = _binary'高斯DB'; -- not support yet
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT _gb18030'高斯DB' = _binary'高斯DB';
+                                ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT '高斯DB' = _utf8mb4'高斯DB';
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT '高斯DB' = _gbk'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT '高斯DB' = _gb18030'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _binary'高斯DB' = _utf8mb4'高斯DB'; -- not support yet
+ERROR:  operator does not exist: bytea = text
+LINE 1: SELECT _binary'高斯DB' = _utf8mb4'高斯DB';
+                               ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT _binary'高斯DB' = _gbk'高斯DB'; -- not support yet
+ERROR:  operator does not exist: bytea = text
+LINE 1: SELECT _binary'高斯DB' = _gbk'高斯DB';
+                               ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT _binary'高斯DB' = _gb18030'高斯DB'; -- not support yet
+ERROR:  operator does not exist: bytea = text
+LINE 1: SELECT _binary'高斯DB' = _gb18030'高斯DB';
+                               ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+-- -- -- explicit & implicit
+SELECT _utf8mb4'高斯DB' = '高斯DB' COLLATE utf8mb4_unicode_ci;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = '高斯DB' COLLATE utf8mb4_bin;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = '高斯DB' COLLATE "C";
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = '高斯DB' COLLATE "zh_CN.utf8";
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = _gbk'高斯DB' COLLATE gbk_chinese_ci;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'楂樻柉DB' = _gbk'高斯db' COLLATE gbk_chinese_ci;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = _gbk'高斯DB' COLLATE gbk_bin;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = _gb18030'高斯DB' COLLATE gb18030_chinese_ci;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'楂樻柉DB' = _gb18030'高斯db' COLLATE gb18030_chinese_ci;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯DB' = _gb18030'高斯DB' COLLATE gb18030_bin;
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = '高斯DB';
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _binary'高斯DB';
+ERROR:  operator does not exist: text = bytea
+LINE 1: ...ELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _binary'...
+                                                             ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _gbk'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci = _gb18030'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = '高斯DB';
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _binary'高斯DB';
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _binary'高斯DB...
+                                                    ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _gbk'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _utf8mb4'高斯DB' COLLATE utf8mb4_bin = _gb18030'高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gbk'高斯DB' = _gb18030'高斯db' COLLATE gb18030_chinese_ci;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _gbk'高斯DB' = _gb18030'高斯DB' COLLATE gb18030_bin;
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _gbk'高斯db' COLLATE gbk_chinese_ci = '高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gbk'高斯db' COLLATE gbk_chinese_ci = _gb18030'高斯DB';
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _gbk'高斯DB' COLLATE gbk_bin = '高斯DB';
+ ?column? 
+----------
+ f
+(1 row)
+
+SELECT _gbk'高斯DB' COLLATE gbk_bin = _gb18030'高斯DB';
+ ?column? 
+----------
+ t
+(1 row)
+
+-- -- 中文 const concat
+-- -- -- same charset & explicit collation
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB' COLLATE "C"); -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_unicode_ci" and "C"
+LINE 1: ...mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB' COLLATE "C...
+                                                             ^
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB' COLLATE "zh_CN.utf8"); -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_unicode_ci" and "zh_CN.utf8"
+LINE 1: ...mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB' COLLATE "z...
+                                                             ^
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB' COLLATE utf8mb4_unicode_ci);
+    concat    
+--------------
+ 高斯DB高斯DB
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB' COLLATE utf8mb4_bin); -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_unicode_ci" and "utf8mb4_bin"
+LINE 1: ...mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB' COLLATE ut...
+                                                             ^
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , '高斯DB' COLLATE utf8mb4_unicode_ci); -- ERROR
+ERROR:  collation mismatch between explicit collations "utf8mb4_bin" and "utf8mb4_unicode_ci"
+LINE 1: ...T(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , '高斯DB' COLLATE ut...
+                                                             ^
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , '高斯DB' COLLATE utf8mb4_bin);
+    concat    
+--------------
+ 高斯DB高斯DB
+(1 row)
+
+-- -- -- same charset & implicit collation
+SELECT CONCAT(_utf8mb4'高斯DB' , '高斯DB') result, collation for(result);
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯DB | utf8mb4_general_ci
+(1 row)
+
+-- -- -- diff charset & explicit collation
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gbk'高斯DB' COLLATE gbk_chinese_ci) result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gbk'高斯DB' COLLATE gbk_bin) result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gb18030'高斯DB' COLLATE gb18030_chinese_ci) result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gb18030'高斯DB' COLLATE gb18030_bin) result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , _gbk'高斯DB' COLLATE gbk_chinese_ci) result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , _gbk'高斯DB' COLLATE gbk_bin) result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , _gb18030'高斯DB' COLLATE gb18030_chinese_ci) result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , _gb18030'高斯DB' COLLATE gb18030_bin) result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_chinese_ci , _gb18030'高斯DB' COLLATE gb18030_chinese_ci) result, collation for(result); -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...' COLLATE gb18030_chinese_ci) result, collation for(result);
+                                                                       ^
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_chinese_ci , _gb18030'高斯DB' COLLATE gb18030_bin) result, collation for(result); -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_bin"
+LINE 1: ...'高斯DB' COLLATE gb18030_bin) result, collation for(result);
+                                                                       ^
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_bin , _gb18030'高斯DB' COLLATE gb18030_chinese_ci) result, collation for(result); -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_chinese_ci"
+LINE 1: ...' COLLATE gb18030_chinese_ci) result, collation for(result);
+                                                                       ^
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_bin , _gb18030'高斯DB' COLLATE gb18030_bin) result, collation for(result); -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_bin"
+LINE 1: ...'高斯DB' COLLATE gb18030_bin) result, collation for(result);
+                                                                       ^
+-- -- -- diff charset & implicit collation
+SELECT CONCAT(_utf8mb4'高斯DB' , _binary'高斯DB') result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ 高斯DB\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB') result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , _gb18030'高斯DB') result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' , '高斯DB') result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 楂樻柉DB高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' , _binary'高斯DB') result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ 高斯DB\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' , _gb18030'高斯DB') result, collation for(result); -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...k'高斯DB' , _gb18030'高斯DB') result, collation for(result);
+                                                                       ^
+SELECT CONCAT(_gb18030'高斯DB' , '高斯DB') result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 楂樻柉DB高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_gb18030'高斯DB' , _binary'高斯DB') result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ 高斯DB\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT( _binary'高斯DB', _utf8mb4'高斯DB') result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ \xe9ab98e696af4442高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT( _binary'高斯DB', '高斯DB') result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ \xe9ab98e696af4442高斯DB | utf8mb4_general_ci
+(1 row)
+
+-- -- -- explicit & implicit
+SELECT CONCAT(_utf8mb4'高斯DB' , '高斯DB' COLLATE "C") result, collation for(result);
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | "C"
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , '高斯DB' COLLATE "zh_CN.utf8") result, collation for(result);
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | "zh_CN.utf8"
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , '高斯DB' COLLATE utf8mb4_unicode_ci) result, collation for(result);
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , '高斯DB' COLLATE utf8mb4_bin) result, collation for(result);
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB' COLLATE gbk_chinese_ci) result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'楂樻柉DB' , _gbk'高斯db' COLLATE gbk_chinese_ci) result, collation for(result);
+      result      | pg_collation_for 
+------------------+------------------
+ 楂樻柉DB楂樻柉db | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB' COLLATE gbk_bin) result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | gbk_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , _gb18030'高斯DB' COLLATE gb18030_chinese_ci) result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | gb18030_chinese_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'楂樻柉DB' , _gb18030'高斯db' COLLATE gb18030_chinese_ci) result, collation for(result);
+      result      |  pg_collation_for  
+------------------+--------------------
+ 楂樻柉DB楂樻柉db | gb18030_chinese_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , _gb18030'高斯DB' COLLATE gb18030_bin) result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | gb18030_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , '高斯DB') result, collation for(result);
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _binary'高斯DB') result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ 高斯DB\xe9ab98e696af4442 | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gbk'高斯DB') result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gb18030'高斯DB') result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , '高斯DB') result, collation for(result);
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , _binary'高斯DB') result, collation for(result);
+          result          | pg_collation_for 
+--------------------------+------------------
+ 高斯DB\xe9ab98e696af4442 | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , _gbk'高斯DB') result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_bin , _gb18030'高斯DB') result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' , _gb18030'高斯DB' COLLATE gb18030_chinese_ci) result, collation for(result);
+      result      |  pg_collation_for  
+------------------+--------------------
+ 楂樻柉DB楂樻柉DB | gb18030_chinese_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' , _gb18030'高斯DB' COLLATE gb18030_bin) result, collation for(result);
+      result      | pg_collation_for 
+------------------+------------------
+ 楂樻柉DB楂樻柉DB | gb18030_bin
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_chinese_ci , '高斯DB') result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 楂樻柉DB高斯DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_chinese_ci , _gb18030'高斯DB') result, collation for(result);
+      result      | pg_collation_for 
+------------------+------------------
+ 楂樻柉DB楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_bin , '高斯DB') result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 楂樻柉DB高斯DB | gbk_bin
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB' COLLATE gbk_bin , _gb18030'高斯DB') result, collation for(result);
+      result      | pg_collation_for 
+------------------+------------------
+ 楂樻柉DB楂樻柉DB | gbk_bin
+(1 row)
+
+SELECT CONCAT(_binary'高斯DB', _utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci) result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ \xe9ab98e696af4442高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(_binary'高斯DB' COLLATE 'binary', _gbk'高斯DB') result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ \xe9ab98e696af4442高斯DB | utf8mb4_general_ci
+(1 row)
+
+-- -- -- concat 3 args
+SELECT CONCAT(_binary'高斯DB', _gb18030'高斯DB', _gbk'高斯DB') result, collation for(result);
+             result             |  pg_collation_for  
+--------------------------------+--------------------
+ \xe9ab98e696af4442高斯DB高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_binary'高斯DB', _gb18030'高斯DB', _gbk'高斯DB' COLLATE gbk_chinese_ci) result, collation for(result);
+               result               | pg_collation_for 
+------------------------------------+------------------
+ \xe9ab98e696af4442楂樻柉DB楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB', _gb18030'高斯DB', _gbk'高斯DB') result, collation for(result);
+         result         |  pg_collation_for  
+------------------------+--------------------
+ 高斯DB楂樻柉DB楂樻柉DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB', _gb18030'高斯DB', _gbk'高斯DB' COLLATE gbk_chinese_ci) result, collation for(result);
+         result         | pg_collation_for 
+------------------------+------------------
+ 高斯DB楂樻柉DB楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB', _gb18030'高斯DB', _binary'高斯DB') result, collation for(result);
+             result             |  pg_collation_for  
+--------------------------------+--------------------
+ 高斯DB高斯DB\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB', _gb18030'高斯DB' COLLATE gb18030_chinese_ci, _binary'高斯DB') result, collation for(result);
+              result              |  pg_collation_for  
+----------------------------------+--------------------
+ 高斯DB楂樻柉DB\xe9ab98e696af4442 | gb18030_chinese_ci
+(1 row)
+
+SELECT CONCAT(_gb18030'高斯DB', _gbk'高斯DB', _utf8mb4'高斯DB') result, collation for(result); -- ERROR
+ERROR:  collation mismatch between collations "gb18030_chinese_ci" and "gbk_chinese_ci"
+LINE 1: ...bk'高斯DB', _utf8mb4'高斯DB') result, collation for(result);
+                                                                       ^
+SELECT CONCAT(_gb18030'高斯DB', _gbk'高斯DB', _binary'高斯DB') result, collation for(result); -- ERROR
+ERROR:  collation mismatch between collations "gb18030_chinese_ci" and "gbk_chinese_ci"
+LINE 1: ...gbk'高斯DB', _binary'高斯DB') result, collation for(result);
+                                                                       ^
+SELECT CONCAT(_gb18030'高斯DB' COLLATE gb18030_chinese_ci, _gbk'高斯DB', _utf8mb4'高斯DB') result, collation for(result);
+         result         |  pg_collation_for  
+------------------------+--------------------
+ 楂樻柉DB楂樻柉DB高斯DB | gb18030_chinese_ci
+(1 row)
+
+SELECT CONCAT(_gb18030'高斯DB', _gbk'高斯DB' COLLATE gbk_chinese_ci, _binary'高斯DB') result, collation for(result);
+               result               | pg_collation_for 
+------------------------------------+------------------
+ 楂樻柉DB楂樻柉DB\xe9ab98e696af4442 | gbk_chinese_ci
+(1 row)
+
+-- -- -- const compare CONCAT
+SELECT _utf8mb4'楂樻柉DB' = CONCAT(_gbk'高斯DB');
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'楂樻柉DB楂樻柉DB' = CONCAT(_gbk'高斯DB', _gb18030'高斯DB' COLLATE gb18030_chinese_ci);
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'楂樻柉DB' COLLATE utf8mb4_bin = CONCAT(_gbk'高斯DB');
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'楂樻柉DB楂樻柉DB' COLLATE utf8mb4_bin = CONCAT(_gbk'高斯DB', _gb18030'高斯DB' COLLATE gb18030_chinese_ci);
+ ?column? 
+----------
+ t
+(1 row)
+
+SELECT _utf8mb4'楂樻柉DB楂樻柉DB' = CONCAT(_gbk'高斯DB', _gb18030'高斯DB'); -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...'楂樻柉DB楂樻柉DB' = CONCAT(_gbk'高斯DB', _gb18030'高斯DB');
+                                                                       ^
+-- -- -- const CONCAT CONCAT
+SELECT CONCAT(_utf8mb4'楂樻柉DB', CONCAT(_gbk'高斯DB')) result, collation for(result);
+      result      |  pg_collation_for  
+------------------+--------------------
+ 楂樻柉DB楂樻柉DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'楂樻柉DB楂樻柉DB', CONCAT(_gbk'高斯DB', _gb18030'高斯DB' COLLATE gb18030_chinese_ci)) result, collation for(result);
+              result              |  pg_collation_for  
+----------------------------------+--------------------
+ 楂樻柉DB楂樻柉DB楂樻柉DB楂樻柉DB | gb18030_chinese_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'楂樻柉DB' COLLATE utf8mb4_bin, CONCAT(_gbk'高斯DB')) result, collation for(result);
+      result      | pg_collation_for 
+------------------+------------------
+ 楂樻柉DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'楂樻柉DB楂樻柉DB' COLLATE utf8mb4_bin, CONCAT(_gbk'高斯DB', _gb18030'高斯DB' COLLATE gb18030_chinese_ci)) result, collation for(result);
+              result              | pg_collation_for 
+----------------------------------+------------------
+ 楂樻柉DB楂樻柉DB楂樻柉DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+-- -- -- const CONCAT with other diff DERIVATION
+-- -- -- -- same charset
+SELECT CONCAT('高斯DB', opengauss_version()) result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 高斯DB5.1.0 | utf8_general_ci
+(1 row)
+
+SELECT CONCAT(opengauss_version(), '高斯DB') result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 5.1.0高斯DB | utf8_general_ci
+(1 row)
+
+SELECT CONCAT('高斯DB', 123) result, collation for(result);
+  result   |  pg_collation_for  
+-----------+--------------------
+ 高斯DB123 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(123, '高斯DB') result, collation for(result);
+  result   |  pg_collation_for  
+-----------+--------------------
+ 123高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT('高斯DB', DATE '2023-05-01') result, collation for(result);
+      result      |  pg_collation_for  
+------------------+--------------------
+ 高斯DB05-01-2023 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(DATE '2023-05-01', '高斯DB') result, collation for(result);
+      result      |  pg_collation_for  
+------------------+--------------------
+ 05-01-2023高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT('高斯DB', NULL) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(NULL, '高斯DB') result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+-- -- -- -- diff charset
+SELECT CONCAT(_gbk'高斯DB', opengauss_version()) result, collation for(result);
+    result     | pg_collation_for 
+---------------+------------------
+ 楂樻柉DB5.1.0 | utf8_general_ci
+(1 row)
+
+SELECT CONCAT(opengauss_version(), _gbk'高斯DB') result, collation for(result);
+    result     | pg_collation_for 
+---------------+------------------
+ 5.1.0楂樻柉DB | utf8_general_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB', 123) result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 楂樻柉DB123 | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(123, _gbk'高斯DB') result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 123楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB', DATE '2023-05-01') result, collation for(result);
+       result       | pg_collation_for 
+--------------------+------------------
+ 楂樻柉DB05-01-2023 | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(DATE '2023-05-01', _gbk'高斯DB') result, collation for(result);
+       result       | pg_collation_for 
+--------------------+------------------
+ 05-01-2023楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(_gbk'高斯DB', NULL) result, collation for(result);
+ result | pg_collation_for 
+--------+------------------
+        | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(NULL, _gbk'高斯DB') result, collation for(result);
+ result | pg_collation_for 
+--------+------------------
+        | gbk_chinese_ci
+(1 row)
+
+-- -- -- CONCAT CONCAT with other diff DERIVATION
+-- -- -- -- same charset
+SELECT CONCAT(CONCAT('高斯DB'), opengauss_version()) result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 高斯DB5.1.0 | utf8_general_ci
+(1 row)
+
+SELECT CONCAT(opengauss_version(), CONCAT('高斯DB')) result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 5.1.0高斯DB | utf8_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT('高斯DB'), 123) result, collation for(result);
+  result   |  pg_collation_for  
+-----------+--------------------
+ 高斯DB123 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(123, CONCAT('高斯DB')) result, collation for(result);
+  result   |  pg_collation_for  
+-----------+--------------------
+ 123高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT('高斯DB'), DATE '2023-05-01') result, collation for(result);
+      result      |  pg_collation_for  
+------------------+--------------------
+ 高斯DB05-01-2023 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(DATE '2023-05-01', CONCAT('高斯DB')) result, collation for(result);
+      result      |  pg_collation_for  
+------------------+--------------------
+ 05-01-2023高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT('高斯DB'), NULL) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(NULL, CONCAT('高斯DB')) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+-- -- -- -- diff charset
+SELECT CONCAT(CONCAT(_gbk'高斯DB'), opengauss_version()) result, collation for(result);
+    result     | pg_collation_for 
+---------------+------------------
+ 楂樻柉DB5.1.0 | utf8_general_ci
+(1 row)
+
+SELECT CONCAT(opengauss_version(), CONCAT(_gbk'高斯DB')) result, collation for(result);
+    result     | pg_collation_for 
+---------------+------------------
+ 5.1.0楂樻柉DB | utf8_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(_gbk'高斯DB'), 123) result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 楂樻柉DB123 | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(123, CONCAT(_gbk'高斯DB')) result, collation for(result);
+   result    | pg_collation_for 
+-------------+------------------
+ 123楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(_gbk'高斯DB'), DATE '2023-05-01') result, collation for(result);
+       result       | pg_collation_for 
+--------------------+------------------
+ 楂樻柉DB05-01-2023 | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(DATE '2023-05-01', CONCAT(_gbk'高斯DB')) result, collation for(result);
+       result       | pg_collation_for 
+--------------------+------------------
+ 05-01-2023楂樻柉DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(_gbk'高斯DB'), NULL) result, collation for(result);
+ result | pg_collation_for 
+--------+------------------
+        | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(NULL, CONCAT(_gbk'高斯DB')) result, collation for(result);
+ result | pg_collation_for 
+--------+------------------
+        | gbk_chinese_ci
+(1 row)
+
+-- -- -- CONCAT NUMBERS
+SELECT CONCAT('100', 200) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+ 100200 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT('100', date'2021-01-01') result, collation for(result);
+    result     |  pg_collation_for  
+---------------+--------------------
+ 10001-01-2021 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT('100', NULL) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT('100', NULL::bytea) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT('100', NULL::text) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(100, 200) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+ 100200 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(100, date'2021-01-01') result, collation for(result);
+    result     |  pg_collation_for  
+---------------+--------------------
+ 10001-01-2021 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(100, NULL) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(100, NULL::bytea) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(100, NULL::text) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(NULL, NULL::bytea) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(NULL, NULL::text) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(100, NULL), '100') result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(100, NULL::bytea), '100') result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(100, NULL::text), '100') result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(100, NULL), 100) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(100, NULL::bytea), 100) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(100, NULL::text), 100) result, collation for(result);
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_general_ci
+(1 row)
+
+-- -- 中文 with column charset
+CREATE TABLE t_diff_charset_columns(
+    futf8_bin varchar(16) CHARSET utf8mb4 COLLATE 'utf8mb4_bin',
+    futf8_uni varchar(16) CHARSET utf8mb4 COLLATE 'utf8mb4_unicode_ci',
+    futf8_gen varchar(16) CHARSET utf8mb4 COLLATE 'utf8mb4_general_ci',
+    fgbk_bin varchar(16) CHARSET gbk COLLATE 'gbk_bin',
+    fgbk_chi varchar(16) CHARSET gbk COLLATE 'gbk_chinese_ci',
+    fgb18030_bin varchar(16) CHARSET gb18030 COLLATE 'gb18030_bin',
+    fgb18030_chi varchar(16) CHARSET gb18030 COLLATE 'gb18030_chinese_ci',
+    fbytea bytea,
+    fblob blob,
+    fbit bit varying(64)
+);
+INSERT INTO t_diff_charset_columns(futf8_bin, futf8_uni, futf8_gen, fgbk_bin, fgbk_chi, fgb18030_bin, fgb18030_chi, fbytea, fblob, fbit)
+    VALUES('高斯DB', '高斯db', '高斯db', '高斯DB', '高斯db', '高斯DB', '高斯db', '高斯DB', 'E9AB98E696AF', B'111010011010101110011000111001101001011010101111');
+-- -- test character length
+SELECT futf8_bin,
+       futf8_uni,
+       fgbk_bin,
+       fgbk_chi,
+       fgb18030_bin,
+       fgb18030_chi,
+       fbytea FROM t_diff_charset_columns;
+ futf8_bin | futf8_uni | fgbk_bin | fgbk_chi | fgb18030_bin | fgb18030_chi |       fbytea       
+-----------+-----------+----------+----------+--------------+--------------+--------------------
+ 高斯DB    | 高斯db    | 高斯DB   | 高斯db   | 高斯DB       | 高斯db       | \xe9ab98e696af4442
+(1 row)
+
+SELECT length(futf8_bin),
+       length(futf8_uni),
+       length(fgbk_bin),
+       length(fgbk_chi),
+       length(fgb18030_bin),
+       length(fgb18030_chi),
+       length(fbytea) FROM t_diff_charset_columns;
+ length | length | length | length | length | length | length 
+--------+--------+--------+--------+--------+--------+--------
+      4 |      4 |      4 |      4 |      4 |      4 |      8
+(1 row)
+
+SELECT lengthb(futf8_bin),
+       lengthb(futf8_uni),
+       lengthb(fgbk_bin),
+       lengthb(fgbk_chi),
+       lengthb(fgb18030_bin),
+       lengthb(fgb18030_chi),
+       length(fbytea) FROM t_diff_charset_columns;
+ lengthb | lengthb | lengthb | lengthb | lengthb | lengthb | length 
+---------+---------+---------+---------+---------+---------+--------
+       8 |       8 |       6 |       6 |       6 |       6 |      8
+(1 row)
+
+-- test prefixkey index
+CREATE INDEX idx_prefixkey_futf8_bin on t_diff_charset_columns (futf8_bin(2) text_pattern_ops);
+set enable_seqscan=off;
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin LIKE '高斯%';
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Index Scan using idx_prefixkey_futf8_bin on t_diff_charset_columns
+   Index Cond: ((futf8_bin)::text = '高斯'::text)
+   Filter: ((futf8_bin)::text ~~ '高斯%'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin LIKE '高斯%';
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin = '高斯DB';
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Index Scan using idx_prefixkey_futf8_bin on t_diff_charset_columns
+   Index Cond: ((futf8_bin)::text = '高斯'::text)
+   Filter: ((futf8_bin)::text = '高斯DB'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin = '高斯DB';
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+CREATE INDEX idx_prefixkey_fgbk_bin on t_diff_charset_columns (fgbk_bin(2) text_pattern_ops);
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin LIKE '高斯%';
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgbk_bin on t_diff_charset_columns
+   Index Cond: ((fgbk_bin)::text = '高斯'::text)
+   Filter: ((fgbk_bin)::text ~~ '高斯%'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin LIKE '高斯%';
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin = '高斯DB';
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgbk_bin on t_diff_charset_columns
+   Index Cond: ((fgbk_bin)::text = '高斯'::text)
+   Filter: ((fgbk_bin)::text = '高斯DB'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin = '高斯DB';
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+CREATE INDEX idx_prefixkey_fgb18030_bin on t_diff_charset_columns (fgb18030_bin(2) text_pattern_ops);
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin LIKE '高斯%';
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgb18030_bin on t_diff_charset_columns
+   Index Cond: ((fgb18030_bin)::text = '高斯'::text)
+   Filter: ((fgb18030_bin)::text ~~ '高斯%'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin LIKE '高斯%';
+ fgb18030_bin 
+--------------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin = '高斯DB';
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgb18030_bin on t_diff_charset_columns
+   Index Cond: ((fgb18030_bin)::text = '高斯'::text)
+   Filter: ((fgb18030_bin)::text = '高斯DB'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin = '高斯DB';
+ fgb18030_bin 
+--------------
+ 高斯DB
+(1 row)
+
+reset enable_seqscan;
+-- -- COLUMN collation only
+SELECT futf8_bin COLLATE gbk_chinese_ci FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT futf8_bin COLLATE gbk_chinese_ci FROM t_diff_charset_...
+                         ^
+SELECT futf8_bin COLLATE 'binary' FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT futf8_bin COLLATE 'binary' FROM t_diff_charset_column...
+                         ^
+SELECT futf8_bin COLLATE "zh_CN.utf8" FROM t_diff_charset_columns; -- support origin collation
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+SELECT futf8_bin COLLATE "C" FROM t_diff_charset_columns; -- support origin collation
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+SELECT fgbk_bin COLLATE gbk_chinese_ci FROM t_diff_charset_columns;
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+SELECT fgbk_bin COLLATE 'binary' FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "GBK"
+LINE 1: SELECT fgbk_bin COLLATE 'binary' FROM t_diff_charset_columns...
+                        ^
+SELECT fgbk_bin COLLATE "zh_CN.gbk" FROM t_diff_charset_columns; -- ERROR
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+SELECT fgbk_bin COLLATE "C" FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GBK" which is different from server_encoding
+LINE 1: SELECT fgbk_bin COLLATE "C" FROM t_diff_charset_columns;
+                        ^
+SELECT fgb18030_bin COLLATE gb18030_chinese_ci FROM t_diff_charset_columns;
+ fgb18030_bin 
+--------------
+ 高斯DB
+(1 row)
+
+SELECT fgb18030_bin COLLATE gbk_chinese_ci FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "GB18030"
+LINE 1: SELECT fgb18030_bin COLLATE gbk_chinese_ci FROM t_diff_chars...
+                            ^
+SELECT fgb18030_bin COLLATE 'binary' FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "GB18030"
+LINE 1: SELECT fgb18030_bin COLLATE 'binary' FROM t_diff_charset_col...
+                            ^
+SELECT fgb18030_bin COLLATE "zh_CN.gb18030" FROM t_diff_charset_columns; -- ERROR
+ fgb18030_bin 
+--------------
+ 高斯DB
+(1 row)
+
+SELECT fgb18030_bin COLLATE "C" FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GB18030" which is different from server_encoding
+LINE 1: SELECT fgb18030_bin COLLATE "C" FROM t_diff_charset_columns;
+                            ^
+SELECT fbytea COLLATE gbk_chinese_ci FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for binary type
+LINE 1: SELECT fbytea COLLATE gbk_chinese_ci FROM t_diff_charset_col...
+                      ^
+CONTEXT:  referenced column: fbytea
+SELECT fbytea COLLATE 'binary' FROM t_diff_charset_columns;
+       fbytea       
+--------------------
+ \xe9ab98e696af4442
+(1 row)
+
+SELECT fbytea COLLATE "zh_CN.utf8" FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "zh_CN.utf8" is not valid for binary type
+LINE 1: SELECT fbytea COLLATE "zh_CN.utf8" FROM t_diff_charset_colum...
+                      ^
+CONTEXT:  referenced column: fbytea
+SELECT fbytea COLLATE "C" FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "C" is not valid for binary type
+LINE 1: SELECT fbytea COLLATE "C" FROM t_diff_charset_columns;
+                      ^
+CONTEXT:  referenced column: fbytea
+SELECT fblob COLLATE gbk_chinese_ci FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for binary type
+LINE 1: SELECT fblob COLLATE gbk_chinese_ci FROM t_diff_charset_colu...
+                     ^
+CONTEXT:  referenced column: fblob
+SELECT fblob COLLATE 'binary' FROM t_diff_charset_columns;
+    fblob     
+--------------
+ E9AB98E696AF
+(1 row)
+
+SELECT fblob COLLATE "zh_CN.utf8" FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "zh_CN.utf8" is not valid for binary type
+LINE 1: SELECT fblob COLLATE "zh_CN.utf8" FROM t_diff_charset_column...
+                     ^
+CONTEXT:  referenced column: fblob
+SELECT fblob COLLATE "C" FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "C" is not valid for binary type
+LINE 1: SELECT fblob COLLATE "C" FROM t_diff_charset_columns;
+                     ^
+CONTEXT:  referenced column: fblob
+SELECT (futf8_uni COLLATE utf8mb4_bin) COLLATE gbk_chinese_ci FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT (futf8_uni COLLATE utf8mb4_bin) COLLATE gbk_chinese_c...
+                                               ^
+SELECT (futf8_uni COLLATE utf8mb4_bin) COLLATE 'binary' FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT (futf8_uni COLLATE utf8mb4_bin) COLLATE 'binary' FROM...
+                                               ^
+SELECT (futf8_uni COLLATE utf8mb4_bin) COLLATE "zh_CN.utf8" FROM t_diff_charset_columns; -- support origin collation
+ futf8_uni 
+-----------
+ 高斯db
+(1 row)
+
+SELECT (futf8_uni COLLATE utf8mb4_bin) COLLATE "C" FROM t_diff_charset_columns; -- support origin collation
+ futf8_uni 
+-----------
+ 高斯db
+(1 row)
+
+SELECT (futf8_uni COLLATE utf8mb4_bin) COLLATE utf8mb4_unicode_ci FROM t_diff_charset_columns;
+ futf8_uni 
+-----------
+ 高斯db
+(1 row)
+
+SELECT (fgbk_chi COLLATE "C") COLLATE utf8mb4_bin FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GBK" which is different from server_encoding
+LINE 1: SELECT (fgbk_chi COLLATE "C") COLLATE utf8mb4_bin FROM t_dif...
+                         ^
+SELECT (fgbk_chi COLLATE "C") COLLATE gbk_chinese_ci FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "C" is not valid for CHARACTER SET "GBK" which is different from server_encoding
+LINE 1: SELECT (fgbk_chi COLLATE "C") COLLATE gbk_chinese_ci FROM t_...
+                         ^
+SELECT (fblob COLLATE "binary") COLLATE utf8mb4_bin FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "utf8mb4_bin" is not valid for binary type
+LINE 1: SELECT (fblob COLLATE "binary") COLLATE utf8mb4_bin FROM t_d...
+                                        ^
+CONTEXT:  referenced column: fblob
+SELECT fbit COLLATE 'binary' FROM t_diff_charset_columns; -- ERROR
+ERROR:  collations are not supported by type bit varying
+LINE 1: SELECT fbit COLLATE 'binary' FROM t_diff_charset_columns;
+                    ^
+CONTEXT:  referenced column: fbit
+-- -- COLUMN compare COLUMN
+-- -- -- same charset & implicit collation
+SELECT futf8_bin = futf8_uni, futf8_uni = futf8_bin FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ f        | f
+(1 row)
+
+SELECT fgbk_bin = fgbk_chi, fgbk_chi = fgbk_bin FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ f        | f
+(1 row)
+
+SELECT fgb18030_bin = fgb18030_chi, fgb18030_chi = fgb18030_bin FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ f        | f
+(1 row)
+
+SELECT futf8_gen = futf8_uni, futf8_uni = futf8_gen FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ t        | t
+(1 row)
+
+SELECT futf8_gen > futf8_uni, futf8_uni > futf8_gen FROM t_diff_charset_columns; -- ERROR
+ERROR:  could not determine which collation to use for string comparison
+HINT:  Use the COLLATE clause to set the collation explicitly.
+-- -- -- diff charset & implicit collation
+SELECT futf8_bin = fgbk_bin, fgbk_bin = futf8_bin FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ t        | t
+(1 row)
+
+SELECT futf8_bin = fgbk_chi, fgbk_chi = futf8_bin FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ f        | f
+(1 row)
+
+SELECT futf8_bin = fgb18030_bin, fgb18030_bin = futf8_bin FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ t        | t
+(1 row)
+
+SELECT futf8_bin = fgb18030_chi, fgb18030_chi = futf8_bin FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ f        | f
+(1 row)
+
+SELECT futf8_uni = fgbk_bin, fgbk_bin = futf8_uni FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ t        | t
+(1 row)
+
+SELECT futf8_uni = fgbk_chi, fgbk_chi = futf8_uni FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ t        | t
+(1 row)
+
+SELECT futf8_uni = fgb18030_bin, fgb18030_bin = futf8_uni FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ t        | t
+(1 row)
+
+SELECT futf8_uni = fgb18030_chi, fgb18030_chi = futf8_uni FROM t_diff_charset_columns;
+ ?column? | ?column? 
+----------+----------
+ t        | t
+(1 row)
+
+SELECT fgbk_bin = fgb18030_bin, fgb18030_bin = fgbk_bin FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_bin"
+LINE 1: ...30_bin, fgb18030_bin = fgbk_bin FROM t_diff_charset_columns;
+                                                                       ^
+SELECT fgbk_bin = fgb18030_chi, fgb18030_chi = fgbk_bin FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_chinese_ci"
+LINE 1: ...30_chi, fgb18030_chi = fgbk_bin FROM t_diff_charset_columns;
+                                                                       ^
+SELECT fgbk_chi = fgb18030_chi, fgb18030_chi = fgbk_chi FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...30_chi, fgb18030_chi = fgbk_chi FROM t_diff_charset_columns;
+                                                                       ^
+-- -- -- with binary & implicit collation
+SELECT futf8_bin = fbytea, fbytea = futf8_bin FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  operator does not exist: character varying = bytea
+LINE 1: SELECT futf8_bin = fbytea, fbytea = futf8_bin FROM t_diff_ch...
+                         ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT futf8_bin = fblob, fblob = futf8_bin FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  invalid hexadecimal digit: "�"
+SELECT futf8_uni = fbytea, fbytea = futf8_uni FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  operator does not exist: character varying = bytea
+LINE 1: SELECT futf8_uni = fbytea, fbytea = futf8_uni FROM t_diff_ch...
+                         ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT futf8_uni = fblob, fblob = futf8_uni FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  invalid hexadecimal digit: "�"
+SELECT fgbk_bin = fbytea, fbytea = fgbk_bin FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  operator does not exist: character varying = bytea
+LINE 1: SELECT fgbk_bin = fbytea, fbytea = fgbk_bin FROM t_diff_char...
+                        ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT fgbk_bin = fblob, fblob = fgbk_bin FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  invalid hexadecimal digit: "�"
+SELECT fgb18030_bin = fbytea, fbytea = fgb18030_bin FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  operator does not exist: character varying = bytea
+LINE 1: SELECT fgb18030_bin = fbytea, fbytea = fgb18030_bin FROM t_d...
+                            ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT fgb18030_bin = fblob, fblob = fgb18030_bin FROM t_diff_charset_columns; -- NOT SUPPORTED
+ERROR:  invalid hexadecimal digit: "�"
+SELECT fbytea = fblob, fblob = fbytea FROM t_diff_charset_columns;
+ERROR:  operator does not exist: bytea = blob
+LINE 1: SELECT fbytea = fblob, fblob = fbytea FROM t_diff_charset_co...
+                      ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+-- -- COLUMN concat COLUMN
+-- -- -- same charset & implicit collation
+SELECT CONCAT(futf8_bin, futf8_uni) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯db | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(fgbk_bin, fgbk_chi) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯db | gbk_bin
+(1 row)
+
+SELECT CONCAT(fgb18030_bin, fgb18030_chi) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯db | gb18030_bin
+(1 row)
+
+SELECT CONCAT(futf8_gen, futf8_uni) result, collation for(result) FROM t_diff_charset_columns; -- result is _bin
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯db高斯db | 
+(1 row)
+
+-- -- -- diff charset & implicit collation
+SELECT CONCAT(futf8_bin, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(futf8_bin, fgbk_chi) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯db | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(futf8_bin, fgb18030_bin) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(futf8_bin, fgb18030_chi) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯db | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(futf8_uni, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, fgbk_chi) result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, fgb18030_bin) result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, fgb18030_chi) result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(fgbk_bin, fgb18030_bin) result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_bin"
+LINE 1: ...) result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+SELECT CONCAT(fgbk_bin, fgb18030_chi) result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_chinese_ci"
+LINE 1: ...) result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+SELECT CONCAT(fgbk_chi, fgb18030_chi) result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...) result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- -- with binary & implicit collation
+SELECT CONCAT(futf8_bin, fbytea) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ 高斯DB\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(futf8_bin, fblob) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+       result       |  pg_collation_for  
+--------------------+--------------------
+ 高斯DBE9AB98E696AF | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, fbytea) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ 高斯db\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, fblob) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+       result       |  pg_collation_for  
+--------------------+--------------------
+ 高斯dbE9AB98E696AF | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(fgbk_bin, fbytea) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+        result         |  pg_collation_for  
+-----------------------+--------------------
+ ˹DB\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(fgbk_bin, fblob) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+     result      |  pg_collation_for  
+-----------------+--------------------
+ ˹DBE9AB98E696AF | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(fgb18030_bin, fbytea) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+        result         |  pg_collation_for  
+-----------------------+--------------------
+ ˹DB\xe9ab98e696af4442 | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(fgb18030_bin, fblob) result, collation for(result) FROM t_diff_charset_columns; -- NOT SUPPORTED
+     result      |  pg_collation_for  
+-----------------+--------------------
+ ˹DBE9AB98E696AF | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(fbytea, fblob) result, collation for(result) FROM t_diff_charset_columns;
+             result             |  pg_collation_for  
+--------------------------------+--------------------
+ \xe9ab98e696af4442E9AB98E696AF | utf8mb4_general_ci
+(1 row)
+
+-- -- concat column and @uservar
+set enable_set_variable_b_format=on;
+-- -- -- string var utf8mb4_general_ci
+set @var_utf8_uni = '高斯DB' COLLATE utf8mb4_unicode_ci; -- should support
+SELECT collation for(@var_utf8_uni);
+  pg_collation_for  
+--------------------
+ utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_gen, @var_utf8_uni) result, collation for(result) FROM t_diff_charset_columns; -- null collation
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯db高斯DB | 
+(1 row)
+
+SELECT CONCAT(fgbk_bin, @var_utf8_uni) result, collation for(result) FROM t_diff_charset_columns; -- utf8mb4_unicode_ci
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(@var_utf8_uni, futf8_bin) result, collation for(result) FROM t_diff_charset_columns; -- _bin
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | utf8mb4_bin
+(1 row)
+
+-- -- -- string var gbk_chinese_ci
+set @var_gbk_chi = _gbk'高斯DB' COLLATE gbk_chinese_ci; -- should support
+SELECT collation for(@var_gbk_chi);
+ pg_collation_for 
+------------------
+ gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, @var_gbk_chi) result, collation for(result) FROM t_diff_charset_columns; -- futf8_uni
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯db楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(@var_gbk_chi, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns; -- fgbk_bin
+     result     | pg_collation_for 
+----------------+------------------
+ 楂樻柉DB高斯DB | gbk_bin
+(1 row)
+
+-- -- -- number var
+set @var_num = 5.0;
+SELECT CONCAT(futf8_bin, @var_num) result, collation for(result) FROM t_diff_charset_columns; -- futf8_bin
+ result  | pg_collation_for 
+---------+------------------
+ 高斯DB5 | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(@var_num, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns; -- fgbk_bin
+ result  | pg_collation_for 
+---------+------------------
+ 5高斯DB | gbk_bin
+(1 row)
+
+-- -- -- bytea var
+set @var_binary = _binary'高斯DB'; -- not support yet
+ERROR:  failed to find conversion function from bytea to text
+SELECT CONCAT(futf8_bin, @var_binary) result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+        | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(@var_binary, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+        | gbk_bin
+(1 row)
+
+-- -- concat column and bind parameter
+-- -- bind parameter collation is fixed as collation_connection, collation level is same as a const
+-- -- -- -- PBE with implicit collation
+PREPARE test_merge_collation(text) AS
+SELECT CONCAT(futf8_uni, $1) result, collation for(result) FROM t_diff_charset_columns;
+-- -- -- -- -- _utf8mb4
+SET @pbe_param1 = _utf8mb4'高斯DB';
+EXECUTE test_merge_collation(@pbe_param1); -- futf8_uni collation has priority
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+EXECUTE test_merge_collation(_utf8mb4'高斯DB'); -- same as above
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, _utf8mb4'高斯DB') result, collation for(result) FROM t_diff_charset_columns; -- same as above
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+-- -- -- -- -- _gbk
+SET @pbe_param1 = _gbk'高斯DB';
+EXECUTE test_merge_collation(@pbe_param1); -- _gbk noneffective, futf8_uni collation has priority,  _gbk'高斯DB' will not convert to utf8mb4
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯db楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+EXECUTE test_merge_collation(_gbk'高斯DB'); -- same as above
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯db楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, _gbk'高斯DB') result, collation for(result) FROM t_diff_charset_columns; -- same as above
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯db楂樻柉DB | utf8mb4_unicode_ci
+(1 row)
+
+-- -- -- -- -- _utf8mb4 utf8mb4_unicode_ci
+SET @pbe_param1 = _utf8mb4'高斯DB' collate utf8mb4_bin;
+EXECUTE test_merge_collation(@pbe_param1); -- explicit noneffective, futf8_uni collation has priority
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+EXECUTE test_merge_collation(_utf8mb4'高斯DB' collate utf8mb4_unicode_ci); -- explicit noneffective, futf8_uni collation has priority
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+DEALLOCATE test_merge_collation;
+-- -- -- -- PBE with explicit collation,
+PREPARE test_merge_collation(text) AS
+SELECT CONCAT($1 collate utf8mb4_unicode_ci, futf8_bin) result, collation for(result) FROM t_diff_charset_columns;
+-- -- -- -- -- _utf8mb4
+SET @pbe_param1 = _utf8mb4'高斯DB';
+EXECUTE test_merge_collation(@pbe_param1);
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+EXECUTE test_merge_collation(_utf8mb4'高斯DB'); -- utf8mb4_unicode_ci
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+-- -- -- -- -- _gbk
+SET @pbe_param1 = _gbk'高斯DB';
+EXECUTE test_merge_collation(@pbe_param1);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 楂樻柉DB高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+EXECUTE test_merge_collation(_gbk'高斯DB'); -- utf8mb4_unicode_ci
+     result     |  pg_collation_for  
+----------------+--------------------
+ 楂樻柉DB高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+DEALLOCATE test_merge_collation;
+-- -- -- -- PBE with explicit collation,
+PREPARE test_merge_collation(text) AS
+SELECT CONCAT($1 collate gbk_chinese_ci, futf8_bin) result, collation for(result) FROM t_diff_charset_columns; -- $1 use collation_connection, ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 2: SELECT CONCAT($1 collate gbk_chinese_ci, futf8_bin) result, ...
+                         ^
+-- -- -- -- test revalidate
+SELECT fgbk_chi result FROM t_diff_charset_columns WHERE fgbk_chi=_utf8mb4'高斯db'; -- 1 rows
+ result 
+--------
+ 高斯db
+(1 row)
+
+PREPARE test_revalidate(text) AS
+SELECT fgbk_chi result FROM t_diff_charset_columns WHERE fgbk_chi=$1;
+EXECUTE test_revalidate(_utf8mb4'高斯db'); -- fgbk_chi collation has priority, 1 rows
+ result 
+--------
+ 高斯db
+(1 row)
+
+ALTER INDEX idx_prefixkey_futf8_bin UNUSABLE;
+EXECUTE test_revalidate(_utf8mb4'高斯db'); -- fgbk_chi collation has priority, 1 rows
+ result 
+--------
+ 高斯db
+(1 row)
+
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+EXECUTE test_revalidate(_utf8mb4'高斯db'); -- fgbk_chi collation has priority, 1 rows
+ result 
+--------
+ 高斯db
+(1 row)
+
+ALTER INDEX idx_prefixkey_futf8_bin REBUILD;
+EXECUTE test_revalidate(_utf8mb4'高斯db'); -- fgbk_chi collation has priority, 1 rows
+ result 
+--------
+ 高斯db
+(1 row)
+
+SET NAMES gbk COLLATE gbk_bin;
+EXECUTE test_revalidate(_utf8mb4'高斯db'); -- fgbk_chi collation has priority, 1 rows
+ result 
+--------
+ ��˹db
+(1 row)
+
+ALTER INDEX idx_prefixkey_futf8_bin REBUILD;
+EXECUTE test_revalidate(_utf8mb4'高斯db'); -- fgbk_chi collation has priority, 1 rows
+ result 
+--------
+ ��˹db
+(1 row)
+
+DEALLOCATE test_revalidate;
+SET NAMES utf8mb4;
+-- -- concat column and PROCEDURE parameter with CURSOR
+-- -- -- implicit collation && string
+create or replace procedure merge_collation_func(p1 text, p2 text)
+as
+DECLARE
+    concat_res text;
+    collation_res text;
+    concat_res_assign varchar(64);
+    CURSOR c1 IS
+        SELECT CONCAT(p1, p2) result, collation for(result);
+begin
+    OPEN c1;
+    LOOP
+        FETCH c1 INTO concat_res, collation_res;
+        EXIT;
+    END LOOP;
+    CLOSE c1;
+    concat_res_assign = concat_res;
+    set @concat_res = concat_res;
+    set @collation_res = collation_res;
+    set @concat_res_assign = concat_res_assign;
+end;
+/
+CALL merge_collation_func('高斯DB', _gbk'高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation,@concat_res_assign; -- utf8mb4_general_ci
+  @concat_res   |   @collation_res   |   real_collation   | @concat_res_assign 
+----------------+--------------------+--------------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_general_ci | utf8mb4_general_ci | 高斯DB楂樻柉DB
+(1 row)
+
+CALL merge_collation_func(_gb18030'高斯DB', _gbk'高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation,@concat_res_assign; -- utf8mb4_general_ci
+   @concat_res    |   @collation_res   |   real_collation   | @concat_res_assign 
+------------------+--------------------+--------------------+--------------------
+ 楂樻柉DB楂樻柉DB | utf8mb4_general_ci | utf8mb4_general_ci | 楂樻柉DB楂樻柉DB
+(1 row)
+
+CALL merge_collation_func(_gb18030'高斯DB', _gbk'高斯DB' collate gbk_chinese_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation,@concat_res_assign; -- utf8mb4_general_ci
+   @concat_res    |   @collation_res   |   real_collation   | @concat_res_assign 
+------------------+--------------------+--------------------+--------------------
+ 楂樻柉DB楂樻柉DB | utf8mb4_general_ci | utf8mb4_general_ci | 楂樻柉DB楂樻柉DB
+(1 row)
+
+DROP procedure merge_collation_func;
+-- -- -- implicit collation && string
+create or replace procedure merge_collation_func(p1 text)
+as
+DECLARE
+    concat_res text;
+    collation_res text;
+    CURSOR c1 IS
+        SELECT CONCAT(futf8_uni, p1) result, collation for(result) FROM t_diff_charset_columns;
+begin
+    OPEN c1;
+    LOOP
+        FETCH c1 INTO concat_res, collation_res;
+        EXIT;
+    END LOOP;
+    CLOSE c1;
+    set @concat_res = concat_res;
+    set @collation_res = collation_res;
+end;
+/
+CALL merge_collation_func('高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- conflict
+ @concat_res  | @collation_res |   real_collation   
+--------------+----------------+--------------------
+ 高斯db高斯DB |                | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func('高斯DB' collate utf8mb4_general_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- conflict
+ @concat_res  | @collation_res |   real_collation   
+--------------+----------------+--------------------
+ 高斯db高斯DB |                | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation;; -- conflict
+  @concat_res   | @collation_res |   real_collation   
+----------------+----------------+--------------------
+ 高斯db楂樻柉DB |                | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB' collate gbk_chinese_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation;; -- conflict
+  @concat_res   | @collation_res |   real_collation   
+----------------+----------------+--------------------
+ 高斯db楂樻柉DB |                | utf8mb4_general_ci
+(1 row)
+
+DROP procedure merge_collation_func;
+-- -- -- implicit collation && string
+create or replace procedure merge_collation_func(p1 text)
+as
+DECLARE
+    concat_res text;
+    collation_res text;
+    CURSOR c1 IS
+        SELECT CONCAT(p1, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+begin
+    OPEN c1;
+    LOOP
+        FETCH c1 INTO concat_res, collation_res;
+        EXIT;
+    END LOOP;
+    CLOSE c1;
+    set @concat_res = concat_res;
+    set @collation_res = collation_res;
+end;
+/
+CALL merge_collation_func('高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- utf8mb4_general_ci
+ @concat_res  |   @collation_res   |   real_collation   
+--------------+--------------------+--------------------
+ 高斯DB高斯DB | utf8mb4_general_ci | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func('高斯DB' collate utf8mb4_general_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- utf8mb4_general_ci
+ @concat_res  |   @collation_res   |   real_collation   
+--------------+--------------------+--------------------
+ 高斯DB高斯DB | utf8mb4_general_ci | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- utf8mb4_general_ci
+  @concat_res   |   @collation_res   |   real_collation   
+----------------+--------------------+--------------------
+ 楂樻柉DB高斯DB | utf8mb4_general_ci | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB' collate gbk_chinese_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- utf8mb4_general_ci
+  @concat_res   |   @collation_res   |   real_collation   
+----------------+--------------------+--------------------
+ 楂樻柉DB高斯DB | utf8mb4_general_ci | utf8mb4_general_ci
+(1 row)
+
+DROP procedure merge_collation_func;
+-- -- -- explicit collation && string
+create or replace procedure merge_collation_func(p1 text)
+as
+DECLARE
+    concat_res text;
+    collation_res text;
+    CURSOR c1 IS
+        SELECT CONCAT(p1, fgbk_bin collate gbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+begin
+    OPEN c1;
+    LOOP
+        FETCH c1 INTO concat_res, collation_res;
+        EXIT;
+    END LOOP;
+    CLOSE c1;
+    set @concat_res = concat_res;
+    set @collation_res = collation_res;
+end;
+/
+CALL merge_collation_func('高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+ @concat_res  | @collation_res |   real_collation   
+--------------+----------------+--------------------
+ 高斯DB高斯DB | gbk_bin        | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func('高斯DB' collate utf8mb4_general_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+ @concat_res  | @collation_res |   real_collation   
+--------------+----------------+--------------------
+ 高斯DB高斯DB | gbk_bin        | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+  @concat_res   | @collation_res |   real_collation   
+----------------+----------------+--------------------
+ 楂樻柉DB高斯DB | gbk_bin        | utf8mb4_general_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB' collate gbk_chinese_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+  @concat_res   | @collation_res |   real_collation   
+----------------+----------------+--------------------
+ 楂樻柉DB高斯DB | gbk_bin        | utf8mb4_general_ci
+(1 row)
+
+DROP procedure merge_collation_func;
+-- -- -- implicit collation && int
+create or replace procedure merge_collation_func(p1 int)
+as
+DECLARE
+    concat_res text;
+    collation_res text;
+    CURSOR c1 IS
+        SELECT CONCAT(fgbk_bin, p1) result, collation for(result) FROM t_diff_charset_columns;
+begin
+    OPEN c1;
+    LOOP
+        FETCH c1 INTO concat_res, collation_res;
+        EXIT;
+    END LOOP;
+    CLOSE c1;
+    set @concat_res = concat_res;
+    set @collation_res = collation_res;
+end;
+/
+CALL merge_collation_func(100);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+ @concat_res | @collation_res |   real_collation   
+-------------+----------------+--------------------
+ 高斯DB100   | gbk_bin        | utf8mb4_general_ci
+(1 row)
+
+DROP procedure merge_collation_func;
+-- -- -- explicit collation && string
+create or replace procedure merge_collation_func(p1 text)
+as
+DECLARE
+    concat_res text;
+    collation_res text;
+    CURSOR c1 IS
+        SELECT CONCAT(futf8_uni, p1 COLLATE gbk_chinese_ci) result, collation for(result) FROM t_diff_charset_columns;
+begin
+    OPEN c1;
+    LOOP
+        FETCH c1 INTO concat_res, collation_res;
+        EXIT;
+    END LOOP;
+    CLOSE c1;
+    set @concat_res = concat_res;
+    set @collation_res = collation_res;
+end;
+/
+CALL merge_collation_func('高斯DB'); -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(futf8_uni, p1 COLLATE gbk_chinese_ci)result, c...
+                                    ^
+QUERY:  SELECT CONCAT(futf8_uni, p1 COLLATE gbk_chinese_ci)result, collation for(result)FROM t_diff_charset_columns
+CONTEXT:  PL/pgSQL function merge_collation_func(text) line 7 at OPEN
+DROP procedure merge_collation_func;
+-- -- concat column and PROCEDURE parameter with select into
+-- -- -- implicit collation
+create or replace procedure merge_collation_func(p1 text)
+as
+begin
+    SELECT CONCAT(futf8_uni, p1) result, collation for(result) FROM t_diff_charset_columns into @concat_res,@collation_res;
+end;
+/
+CALL merge_collation_func('高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- conflict
+ @concat_res  |   @collation_res   |   real_collation   
+--------------+--------------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci | utf8mb4_unicode_ci
+(1 row)
+
+CALL merge_collation_func('高斯DB' collate utf8mb4_general_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- conflict
+ @concat_res  |   @collation_res   |   real_collation   
+--------------+--------------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci | utf8mb4_unicode_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- utf8mb4_unicode_ci
+  @concat_res   |   @collation_res   |   real_collation   
+----------------+--------------------+--------------------
+ 高斯db楂樻柉DB | utf8mb4_unicode_ci | utf8mb4_unicode_ci
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB' collate gbk_chinese_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- utf8mb4_unicode_ci
+  @concat_res   |   @collation_res   |   real_collation   
+----------------+--------------------+--------------------
+ 高斯db楂樻柉DB | utf8mb4_unicode_ci | utf8mb4_unicode_ci
+(1 row)
+
+DROP procedure merge_collation_func;
+-- -- -- implicit collation
+create or replace procedure merge_collation_func(p1 text)
+as
+begin
+    SELECT CONCAT(p1, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns into @concat_res,@collation_res;
+end;
+/
+CALL merge_collation_func('高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+ @concat_res  | @collation_res | real_collation 
+--------------+----------------+----------------
+ 高斯DB高斯DB | gbk_bin        | gbk_bin
+(1 row)
+
+CALL merge_collation_func('高斯DB' collate utf8mb4_general_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+ @concat_res  | @collation_res | real_collation 
+--------------+----------------+----------------
+ 高斯DB高斯DB | gbk_bin        | gbk_bin
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB');
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+  @concat_res   | @collation_res | real_collation 
+----------------+----------------+----------------
+ 楂樻柉DB高斯DB | gbk_bin        | gbk_bin
+(1 row)
+
+CALL merge_collation_func(_gbk'高斯DB' collate gbk_chinese_ci);
+ merge_collation_func 
+----------------------
+ 
+(1 row)
+
+SELECT @concat_res,@collation_res,collation for(@concat_res) real_collation; -- gbk_bin
+  @concat_res   | @collation_res | real_collation 
+----------------+----------------+----------------
+ 楂樻柉DB高斯DB | gbk_bin        | gbk_bin
+(1 row)
+
+DROP procedure merge_collation_func;
+-- -- -- explicit collation
+create or replace procedure merge_collation_func(p1 text)
+as
+begin
+    SELECT CONCAT(futf8_uni, p1 COLLATE gbk_chinese_ci) result, collation for(result) FROM t_diff_charset_columns into @concat_res,@collation_res;
+end;
+/
+CALL merge_collation_func('高斯DB'); -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(futf8_uni, p1 COLLATE gbk_chinese_ci) result, ...
+                                    ^
+QUERY:  SELECT CONCAT(futf8_uni, p1 COLLATE gbk_chinese_ci) result, collation for(result) FROM t_diff_charset_columns into @concat_res,@collation_res
+CONTEXT:  PL/pgSQL function merge_collation_func(text) line 2 at SQL statement
+DROP procedure merge_collation_func;
+-- -- concat for DERIVATION
+-- -- -- same charset & diff DERIVATION
+SELECT CONCAT(CONCAT(futf8_gen, futf8_uni), futf8_bin) result, collation for(result) FROM t_diff_charset_columns; -- conflict in concat inside
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯db高斯db高斯DB | 
+(1 row)
+
+SELECT CONCAT(futf8_bin, CONCAT(futf8_gen, futf8_uni)) result, collation for(result) FROM t_diff_charset_columns; -- conflict in concat inside
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯DB高斯db高斯db | 
+(1 row)
+
+SELECT CONCAT(CONCAT(futf8_gen, futf8_uni), futf8_bin collate utf8mb4_unicode_ci) result, collation for(result) FROM t_diff_charset_columns; -- utf8mb4_unicode_ci
+       result       |  pg_collation_for  
+--------------------+--------------------
+ 高斯db高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_bin collate utf8mb4_unicode_ci, CONCAT(futf8_gen, futf8_uni)) result, collation for(result) FROM t_diff_charset_columns; -- utf8mb4_unicode_ci
+       result       |  pg_collation_for  
+--------------------+--------------------
+ 高斯DB高斯db高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(futf8_gen), futf8_uni) result, collation for(result) FROM t_diff_charset_columns; -- conflict
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯db高斯db | 
+(1 row)
+
+SELECT CONCAT(futf8_uni, CONCAT(futf8_gen)) result, collation for(result) FROM t_diff_charset_columns; -- conflict
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯db高斯db | 
+(1 row)
+
+SELECT CONCAT(futf8_uni, opengauss_version()) result, collation for(result) FROM t_diff_charset_columns;
+   result    |  pg_collation_for  
+-------------+--------------------
+ 高斯db5.1.0 | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(opengauss_version(), futf8_uni) result, collation for(result) FROM t_diff_charset_columns;
+   result    |  pg_collation_for  
+-------------+--------------------
+ 5.1.0高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, '高斯DB') result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯db高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT('高斯DB', futf8_uni) result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, 123) result, collation for(result) FROM t_diff_charset_columns;
+  result   |  pg_collation_for  
+-----------+--------------------
+ 高斯db123 | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(123, futf8_uni) result, collation for(result) FROM t_diff_charset_columns;
+  result   |  pg_collation_for  
+-----------+--------------------
+ 123高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, DATE '2023-05-01') result, collation for(result) FROM t_diff_charset_columns;
+      result      |  pg_collation_for  
+------------------+--------------------
+ 高斯db05-01-2023 | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(DATE '2023-05-01', futf8_uni) result, collation for(result) FROM t_diff_charset_columns;
+      result      |  pg_collation_for  
+------------------+--------------------
+ 05-01-2023高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, NULL) result, collation for(result) FROM t_diff_charset_columns;
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(NULL, futf8_uni) result, collation for(result) FROM t_diff_charset_columns;
+ result |  pg_collation_for  
+--------+--------------------
+        | utf8mb4_unicode_ci
+(1 row)
+
+-- -- -- diff charset & diff DERIVATION
+SELECT CONCAT(CONCAT(futf8_gen, futf8_uni), CONCAT(fgbk_chi, fgb18030_chi)) result, collation for(result) FROM t_diff_charset_columns; -- conflict in concat inside
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...) result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+SELECT CONCAT(CONCAT(fgbk_chi, fgb18030_chi), CONCAT(futf8_gen, futf8_uni)) result, collation for(result) FROM t_diff_charset_columns; -- conflict in concat inside
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...) result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+SELECT CONCAT(CONCAT(futf8_gen, futf8_uni), fgbk_chi) result, collation for(result) FROM t_diff_charset_columns; -- conflict in concat inside
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯db高斯db高斯db | 
+(1 row)
+
+SELECT CONCAT(fgbk_chi, CONCAT(futf8_gen, futf8_uni)) result, collation for(result) FROM t_diff_charset_columns; -- conflict in concat inside
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯db高斯db高斯db | 
+(1 row)
+
+SELECT CONCAT(CONCAT(futf8_gen, futf8_uni), fgbk_chi COLLATE gbk_chinese_ci) result, collation for(result) FROM t_diff_charset_columns; -- gbk_chinese_ci
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯db高斯db高斯db | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(fgbk_chi COLLATE gbk_chinese_ci, CONCAT(futf8_gen, futf8_uni)) result, collation for(result) FROM t_diff_charset_columns; -- gbk_chinese_ci
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯db高斯db高斯db | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(CONCAT(futf8_gen, fgbk_chi), futf8_uni) result, collation for(result) FROM t_diff_charset_columns; -- conflict
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯db高斯db高斯db | 
+(1 row)
+
+SELECT CONCAT(futf8_uni, CONCAT(futf8_gen, fgbk_chi)) result, collation for(result) FROM t_diff_charset_columns; -- conflict
+       result       | pg_collation_for 
+--------------------+------------------
+ 高斯db高斯db高斯db | 
+(1 row)
+
+SELECT CONCAT(fgbk_chi, CONCAT(fgb18030_chi)) result, collation for(result) FROM t_diff_charset_columns;
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ...) result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+SELECT CONCAT(CONCAT(fgb18030_bin), fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+ERROR:  collation mismatch between collations "gb18030_bin" and "gbk_bin"
+LINE 1: ...) result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+SELECT CONCAT(fgbk_chi, opengauss_version()) result, collation for(result) FROM t_diff_charset_columns;
+   result    | pg_collation_for 
+-------------+------------------
+ 高斯db5.1.0 | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(opengauss_version(), fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+   result    | pg_collation_for 
+-------------+------------------
+ 5.1.0高斯DB | gbk_bin
+(1 row)
+
+SELECT CONCAT(fgbk_chi, '高斯DB') result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯db高斯DB | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT('高斯DB', fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯DB高斯DB | gbk_bin
+(1 row)
+
+SELECT CONCAT(fgbk_chi, 123) result, collation for(result) FROM t_diff_charset_columns;
+  result   | pg_collation_for 
+-----------+------------------
+ 高斯db123 | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(123, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+  result   | pg_collation_for 
+-----------+------------------
+ 123高斯DB | gbk_bin
+(1 row)
+
+SELECT CONCAT(fgbk_chi, DATE '2023-05-01') result, collation for(result) FROM t_diff_charset_columns;
+      result      | pg_collation_for 
+------------------+------------------
+ 高斯db05-01-2023 | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(DATE '2023-05-01', fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+      result      | pg_collation_for 
+------------------+------------------
+ 05-01-2023高斯DB | gbk_bin
+(1 row)
+
+SELECT CONCAT(fgbk_chi, NULL) result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+        | gbk_chinese_ci
+(1 row)
+
+SELECT CONCAT(NULL, fgbk_bin) result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+        | gbk_bin
+(1 row)
+
+-- -- test explicit collate on concat
+-- -- -- same charset & implicit collation
+SELECT CONCAT(futf8_bin, futf8_uni) COLLATE utf8mb4_general_ci result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯db | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(futf8_bin, futf8_uni) COLLATE gbk_chinese_ci result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(futf8_bin, futf8_uni) COLLATE gbk_chinese_ci r...
+                                            ^
+-- -- -- diff charset & implicit collation
+SELECT CONCAT(futf8_bin, fgbk_bin) COLLATE utf8mb4_general_ci result, collation for(result) FROM t_diff_charset_columns;
+    result    |  pg_collation_for  
+--------------+--------------------
+ 高斯DB高斯DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(futf8_bin, fgbk_bin) COLLATE gbk_chinese_ci result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(futf8_bin, fgbk_bin) COLLATE gbk_chinese_ci re...
+                                           ^
+-- -- -- with binary & implicit collation
+SELECT CONCAT(fbytea, futf8_uni) COLLATE "binary" result, collation for(result) FROM t_diff_charset_columns; -- return datatype still text
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(fbytea, futf8_uni) COLLATE "binary" result, co...
+                                         ^
+SELECT CONCAT(fbytea, futf8_uni) COLLATE utf8mb4_general_ci result, collation for(result) FROM t_diff_charset_columns; -- return datatype still text
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ \xe9ab98e696af4442高斯db | utf8mb4_general_ci
+(1 row)
+
+-- -- test explicit collate on blob result
+SELECT CAST('DEADBEEF' AS blob) COLLATE utf8mb4_general_ci result; -- ERROR
+ERROR:  COLLATION "utf8mb4_general_ci" is not valid for binary type
+LINE 1: SELECT CAST('DEADBEEF' AS blob) COLLATE utf8mb4_general_ci r...
+                                        ^
+CONTEXT:  referenced column: result
+SELECT CAST('DEADBEEF' AS blob) COLLATE "binary" result;
+  result  
+----------
+ DEADBEEF
+(1 row)
+
+-- -- case when
+-- -- -- condition same charset & result same charset & implicit collation
+-- -- -- -- bool condition
+SELECT CASE WHEN (fgbk_chi = fgbk_bin) THEN (futf8_bin) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | utf8mb4_bin
+(1 row)
+
+SELECT CASE WHEN (futf8_bin = futf8_uni) THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | gbk_bin
+(1 row)
+
+SELECT CASE WHEN (fgbk_chi = fgbk_bin) THEN (futf8_gen) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns; -- null collation
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | 
+(1 row)
+
+SELECT CASE WHEN (futf8_gen = futf8_uni) THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | gbk_bin
+(1 row)
+
+-- -- -- -- case condition
+SELECT CASE fgbk_chi WHEN fgbk_bin THEN (futf8_bin) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | utf8mb4_bin
+(1 row)
+
+SELECT CASE futf8_bin WHEN futf8_uni THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | gbk_bin
+(1 row)
+
+SELECT CASE fgbk_chi WHEN fgbk_bin THEN (futf8_gen) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns; -- null collation
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | 
+(1 row)
+
+SELECT CASE futf8_gen WHEN futf8_uni THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | gbk_bin
+(1 row)
+
+-- -- -- condition same charset & result diff charset & implicit collation
+-- -- -- -- bool condition
+SELECT CASE WHEN (fgbk_chi = fgbk_bin) THEN (fgbk_bin) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns;
+ result |  pg_collation_for  
+--------+--------------------
+ 高斯db | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CASE WHEN (futf8_bin = futf8_uni) THEN (futf8_uni) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result |  pg_collation_for  
+--------+--------------------
+ 高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CASE WHEN (futf8_bin = futf8_uni) THEN (fgb18030_bin) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gb18030_bin" and "gbk_bin"
+LINE 1: ...D result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- -- -- case condition
+SELECT CASE fgbk_chi WHEN fgbk_bin THEN (futf8_bin) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | utf8mb4_bin
+(1 row)
+
+SELECT CASE futf8_bin WHEN futf8_uni THEN (futf8_uni) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result |  pg_collation_for  
+--------+--------------------
+ 高斯DB | utf8mb4_unicode_ci
+(1 row)
+
+-- -- -- condition diff charset & result same charset & implicit collation
+-- -- -- -- bool condition
+SELECT CASE WHEN (futf8_uni = fgbk_bin) THEN (futf8_bin) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CASE WHEN (fgbk_bin = futf8_uni) THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | gbk_bin
+(1 row)
+
+SELECT CASE WHEN (fgbk_bin = fgb18030_bin) THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_bin"
+LINE 1: ...D result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- -- -- case condition
+SELECT CASE futf8_uni WHEN fgbk_bin THEN (futf8_bin) ELSE (futf8_uni) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CASE fgbk_bin WHEN futf8_uni THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | gbk_bin
+(1 row)
+
+SELECT CASE fgbk_bin WHEN fgb18030_bin THEN (fgbk_chi) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_bin"
+LINE 1: ...D result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- -- condition diff charset & result diff charset & implicit collation
+-- -- -- -- bool condition
+SELECT CASE WHEN (futf8_uni = fgbk_bin) THEN (fgbk_bin) ELSE (futf8_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CASE WHEN (fgbk_bin = futf8_uni) THEN (futf8_bin) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CASE WHEN (fgbk_bin = fgb18030_bin) THEN (fgb18030_chi) ELSE (fgbk_chi) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_bin" and "gb18030_bin"
+LINE 1: ...D result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- -- -- case condition
+SELECT CASE futf8_uni WHEN fgbk_bin THEN (fgbk_bin) ELSE (futf8_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CASE fgbk_bin WHEN futf8_uni THEN (futf8_bin) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯DB | utf8mb4_bin
+(1 row)
+
+SELECT CASE fgb18030_chi WHEN fgbk_chi THEN (fgb18030_bin) ELSE (fgbk_bin) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gb18030_chinese_ci" and "gbk_chinese_ci"
+LINE 1: ...D result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- -- -- conflict
+SELECT CASE _gb18030'高斯' WHEN fgbk_bin THEN (fgbk_bin) ELSE (futf8_bin) END result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gb18030_chinese_ci" and "gbk_bin"
+LINE 1: ...D result, collation for(result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- in
+-- -- -- column utf8
+EXPLAIN (costs off)
+SELECT futf8_bin FROM t_diff_charset_columns WHERE futf8_bin in (_gb18030'高斯DB', _gbk'高斯DB'); -- ERROR
+ERROR:  collation mismatch between collations "gb18030_chinese_ci" and "gbk_chinese_ci"
+LINE 2: ...columns WHERE futf8_bin in (_gb18030'高斯DB', _gbk'高斯DB');
+                                                                       ^
+SELECT futf8_bin FROM t_diff_charset_columns WHERE futf8_bin in (_gb18030'高斯DB', _gbk'高斯DB'); -- ERROR
+ERROR:  collation mismatch between collations "gb18030_chinese_ci" and "gbk_chinese_ci"
+LINE 1: ...columns WHERE futf8_bin in (_gb18030'高斯DB', _gbk'高斯DB');
+                                                                       ^
+EXPLAIN (costs off)
+SELECT futf8_bin FROM t_diff_charset_columns WHERE futf8_bin in (_gb18030'高斯DB' COLLATE gb18030_chinese_ci, '高斯DB');
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Seq Scan on t_diff_charset_columns
+   Filter: ((futf8_bin)::text = ANY ('{楂樻柉DB,高斯DB}'::text[]))
+(2 rows)
+
+SELECT futf8_bin FROM t_diff_charset_columns WHERE futf8_bin in (_gb18030'高斯DB' COLLATE gb18030_chinese_ci, '高斯DB');
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT futf8_bin FROM t_diff_charset_columns WHERE futf8_bin in (_gb18030'高斯DB', concat('高斯DB'));
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on t_diff_charset_columns
+   Filter: ((futf8_bin)::text = ANY ((ARRAY['楂樻柉DB'::character varying, (concat('高斯DB'))::character varying])::text[]))
+(2 rows)
+
+SELECT futf8_bin FROM t_diff_charset_columns WHERE futf8_bin in (_gb18030'高斯DB', concat('高斯DB'));
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE futf8_bin in (SELECT t2.futf8_gen FROM t_diff_charset_columns t2);
+ futf8_bin 
+-----------
+(0 rows)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE futf8_bin in (SELECT t2.fgbk_bin FROM t_diff_charset_columns t2);
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE futf8_gen in (SELECT t2.fgbk_bin FROM t_diff_charset_columns t2);
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE futf8_gen in (SELECT t2.futf8_uni FROM t_diff_charset_columns t2);
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+-- -- -- column gbk
+EXPLAIN (costs off)
+SELECT fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin in (_gb18030'高斯DB', '高斯DB');
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Seq Scan on t_diff_charset_columns
+   Filter: ((fgbk_bin)::text = ANY ('{楂樻柉DB,高斯DB}'::text[]))
+(2 rows)
+
+EXPLAIN (costs off)
+SELECT fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin in (_gb18030'高斯DB', '高斯DB' COLLATE utf8mb4_bin);
+                                      QUERY PLAN                                      
+--------------------------------------------------------------------------------------
+ Seq Scan on t_diff_charset_columns
+   Filter: ((fgbk_bin)::text = ANY ('{楂樻柉DB,高斯DB}'::text[] COLLATE utf8mb4_bin))
+(2 rows)
+
+SELECT fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin in (_gb18030'高斯DB', '高斯DB' COLLATE utf8mb4_bin);
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin in (_utf8mb4'高斯DB', _gbk'高斯DB');
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Seq Scan on t_diff_charset_columns
+   Filter: ((fgbk_bin)::text = ANY ('{高斯DB,楂樻柉DB}'::text[]))
+(2 rows)
+
+SELECT fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin in (_utf8mb4'高斯DB', _gbk'高斯DB');
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin in ('高斯DB', concat(_gbk'高斯DB' COLLATE gbk_chinese_ci));
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on t_diff_charset_columns
+   Filter: ((fgbk_bin)::text = ANY ((ARRAY['高斯DB'::character varying, (concat('楂樻柉DB'::text))::character varying])::text[]))
+(2 rows)
+
+SELECT fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin in ('高斯DB', concat(_gbk'高斯DB' COLLATE gbk_chinese_ci));
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE fgbk_bin in (SELECT t2.fgbk_chi FROM t_diff_charset_columns t2);
+ futf8_bin 
+-----------
+(0 rows)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE fgbk_bin in (SELECT t2.futf8_bin FROM t_diff_charset_columns t2);
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE fgbk_chi in (SELECT t2.fgbk_bin FROM t_diff_charset_columns t2);
+ futf8_bin 
+-----------
+(0 rows)
+
+SELECT futf8_bin FROM t_diff_charset_columns t1 WHERE fgbk_chi in (SELECT t2.fgb18030_bin FROM t_diff_charset_columns t2); -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_bin"
+LINE 1: ... in (SELECT t2.fgb18030_bin FROM t_diff_charset_columns t2);
+                                                                       ^
+-- -- COALESCE
+SELECT COALESCE(fgbk_chi, futf8_bin) result, collation for(result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | utf8mb4_bin
+(1 row)
+
+SELECT COALESCE(futf8_gen, futf8_bin) result, collation for (result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | utf8mb4_bin
+(1 row)
+
+SELECT COALESCE(futf8_uni, futf8_gen) result, collation for (result) FROM t_diff_charset_columns; -- conflict
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | 
+(1 row)
+
+SELECT COALESCE(fgbk_chi, fgb18030_chi) result, collation for (result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ... result, collation for (result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- GREATEST
+SELECT GREATEST(fgbk_chi, futf8_bin) result, collation for (result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | utf8mb4_bin
+(1 row)
+
+SELECT GREATEST(futf8_gen, futf8_bin) result, collation for (result) FROM t_diff_charset_columns;
+ result | pg_collation_for 
+--------+------------------
+ 高斯db | utf8mb4_bin
+(1 row)
+
+SELECT GREATEST(futf8_uni, futf8_gen) result, collation for (result) FROM t_diff_charset_columns; -- conflict
+ERROR:  could not determine which collation to use for string comparison
+HINT:  Use the COLLATE clause to set the collation explicitly.
+CONTEXT:  referenced column: result
+SELECT GREATEST(fgbk_chi, fgb18030_chi) result, collation for (result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gbk_chinese_ci" and "gb18030_chinese_ci"
+LINE 1: ... result, collation for (result) FROM t_diff_charset_columns;
+                                                                       ^
+-- -- rowcompare
+SELECT futf8_bin, futf8_uni, fgbk_bin, fgbk_chi, fgb18030_bin, fgb18030_chi FROM t_diff_charset_columns
+    WHERE (futf8_bin, futf8_uni, fgbk_bin, fgbk_chi, fgb18030_bin, fgb18030_chi) = ('高斯DB', '高斯db', '高斯DB', '高斯db', '高斯DB', '高斯db');
+ futf8_bin | futf8_uni | fgbk_bin | fgbk_chi | fgb18030_bin | fgb18030_chi 
+-----------+-----------+----------+----------+--------------+--------------
+ 高斯DB    | 高斯db    | 高斯DB   | 高斯db   | 高斯DB       | 高斯db
+(1 row)
+
+SELECT futf8_bin, futf8_uni, fgbk_bin, fgbk_chi, fgb18030_bin, fgb18030_chi FROM t_diff_charset_columns
+    WHERE (futf8_bin, futf8_uni, fgbk_bin, fgbk_chi, fgb18030_bin, fgb18030_chi) = ('高斯DB', '高斯DB', '高斯DB', '高斯DB', '高斯DB', '高斯DB');
+ futf8_bin | futf8_uni | fgbk_bin | fgbk_chi | fgb18030_bin | fgb18030_chi 
+-----------+-----------+----------+----------+--------------+--------------
+ 高斯DB    | 高斯db    | 高斯DB   | 高斯db   | 高斯DB       | 高斯db
+(1 row)
+
+-- -- aggregate
+SELECT count(futf8_bin), futf8_bin FROM t_diff_charset_columns GROUP BY futf8_bin;
+ count | futf8_bin 
+-------+-----------
+     1 | 高斯DB
+(1 row)
+
+SELECT count(fgbk_bin), fgbk_bin FROM t_diff_charset_columns GROUP BY fgbk_bin;
+ count | fgbk_bin 
+-------+----------
+     1 | 高斯DB
+(1 row)
+
+SELECT count(fgb18030_bin), fgb18030_bin FROM t_diff_charset_columns GROUP BY fgb18030_bin;
+ count | fgb18030_bin 
+-------+--------------
+     1 | 高斯DB
+(1 row)
+
+SELECT group_concat(futf8_bin, fgbk_chi), fgb18030_bin FROM t_diff_charset_columns GROUP BY fgb18030_bin;
+ group_concat | fgb18030_bin 
+--------------+--------------
+ 高斯DB高斯db | 高斯DB
+(1 row)
+
+SELECT group_concat(fgbk_bin, fgbk_chi order by futf8_bin), fgb18030_bin FROM t_diff_charset_columns GROUP BY fgb18030_bin;
+ group_concat | fgb18030_bin 
+--------------+--------------
+ 高斯DB高斯db | 高斯DB
+(1 row)
+
+SELECT group_concat(DISTINCT fgbk_bin, futf8_bin order by fgbk_bin, futf8_bin), fgb18030_bin FROM t_diff_charset_columns GROUP BY fgb18030_bin;
+ group_concat | fgb18030_bin 
+--------------+--------------
+ 高斯DB高斯DB | 高斯DB
+(1 row)
+
+-- -- UNION
+-- -- -- const
+select _utf8mb4'高斯' union select _gbk'高斯';
+ ?column? 
+----------
+ 楂樻柉
+ 高斯
+(2 rows)
+
+select _gb18030'高斯' union select _gbk'高斯'; -- ERROR
+ERROR:  collation mismatch between collations "gb18030_chinese_ci" and "gbk_chinese_ci"
+LINE 1: select _gb18030'高斯' union select _gbk'高斯';
+                                               ^
+HINT:  You can choose the collation by applying the COLLATE clause to one or both expressions.
+-- -- -- column
+select futf8_bin FROM t_diff_charset_columns
+    union
+    select fgbk_bin FROM t_diff_charset_columns;
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+select fgb18030_bin FROM t_diff_charset_columns
+    union
+    select fgbk_bin FROM t_diff_charset_columns; -- ERROR
+ERROR:  collation mismatch between collations "gb18030_bin" and "gbk_bin"
+LINE 3:     select fgbk_bin FROM t_diff_charset_columns;
+                   ^
+HINT:  You can choose the collation by applying the COLLATE clause to one or both expressions.
+-- -- -- explicit
+select fgbk_chi COLLATE gbk_chinese_ci FROM t_diff_charset_columns
+    union
+    select fgbk_bin FROM t_diff_charset_columns;
+ fgbk_chi 
+----------
+ 高斯db
+(1 row)
+
+select fgbk_chi COLLATE gbk_chinese_ci FROM t_diff_charset_columns
+    union all
+    select fgbk_bin FROM t_diff_charset_columns;
+ fgbk_chi 
+----------
+ 高斯db
+ 高斯DB
+(2 rows)
+
+select fgbk_chi COLLATE gbk_chinese_ci FROM t_diff_charset_columns
+    INTERSECT
+    select fgbk_bin FROM t_diff_charset_columns;
+ fgbk_chi 
+----------
+ 高斯db
+(1 row)
+
+-- -- -- mixed
+select _utf8mb4'高斯', futf8_bin FROM t_diff_charset_columns
+    union
+    select _gbk'高斯', fgbk_bin FROM t_diff_charset_columns;
+ ?column? | futf8_bin 
+----------+-----------
+ 楂樻柉   | 高斯DB
+ 高斯     | 高斯DB
+(2 rows)
+
+select _utf8mb4'GS', futf8_bin FROM t_diff_charset_columns
+    union
+    select _gbk'GS', fgbk_bin FROM t_diff_charset_columns;
+ ?column? | futf8_bin 
+----------+-----------
+ GS       | 高斯DB
+(1 row)
+
+select _utf8mb4'GS', fgbk_bin FROM t_diff_charset_columns
+    union
+    select _gbk'GS', fgbk_chi FROM t_diff_charset_columns;
+ ?column? | fgbk_bin 
+----------+----------
+ GS       | 高斯DB
+ GS       | 高斯db
+(2 rows)
+
+-- -- -- 3 select
+select _utf8mb4'GS', fgbk_bin FROM t_diff_charset_columns
+    union
+    select _gbk'GS', futf8_bin FROM t_diff_charset_columns
+    union
+    select _gb18030'GS', fgb18030_bin FROM t_diff_charset_columns;
+ ?column? | fgbk_bin 
+----------+----------
+ GS       | 高斯DB
+(1 row)
+
+select _utf8mb4'GS', fgbk_bin FROM t_diff_charset_columns
+    union
+    select _gbk'GS', futf8_bin FROM t_diff_charset_columns
+    union
+    select _gb18030'GS', fgb18030_chi COLLATE gb18030_chinese_ci FROM t_diff_charset_columns;
+ ?column? | fgbk_bin 
+----------+----------
+ GS       | 高斯DB
+(1 row)
+
+-- -- -- complex select
+select _utf8mb4'GS', GROUP_CONCAT(fgbk_bin, fgbk_chi), fgbk_bin FROM t_diff_charset_columns GROUP BY fgbk_bin
+    union
+    select _gbk'GS', GROUP_CONCAT(futf8_bin, futf8_uni), futf8_bin FROM t_diff_charset_columns GROUP BY futf8_bin
+    union
+    select _gb18030'GS', GROUP_CONCAT(fgb18030_bin, fgb18030_chi), fgb18030_bin FROM t_diff_charset_columns GROUP BY fgb18030_bin;
+ ?column? | group_concat | fgbk_bin 
+----------+--------------+----------
+ GS       | 高斯DB高斯db | 高斯DB
+(1 row)
+
+select _utf8mb4'GS', GROUP_CONCAT(fgbk_bin, fgbk_chi), fgbk_bin FROM t_diff_charset_columns GROUP BY fgbk_bin
+    union
+    select _gbk'GS', GROUP_CONCAT(futf8_bin, futf8_uni), futf8_bin FROM t_diff_charset_columns GROUP BY futf8_bin
+    union
+    select _gb18030'GS', GROUP_CONCAT(fgb18030_bin, fgb18030_chi  COLLATE gb18030_chinese_ci), fgb18030_chi COLLATE gb18030_chinese_ci FROM t_diff_charset_columns GROUP BY fgb18030_chi;
+ ?column? | group_concat | fgbk_bin 
+----------+--------------+----------
+ GS       | 高斯DB高斯db | 高斯DB
+(1 row)
+
+-- -- test COLLATE for function
+-- -- -- for string function
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gbk'高斯DB' COLLATE gbk_chinese_ci) COLLATE utf8mb4_general_ci result, collation for(result);
+     result     |  pg_collation_for  
+----------------+--------------------
+ 高斯DB楂樻柉DB | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' COLLATE utf8mb4_unicode_ci , _gbk'高斯DB' COLLATE gbk_chinese_ci) COLLATE gbk_chinese_ci result, collation for(result); -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: ...unicode_ci , _gbk'高斯DB' COLLATE gbk_chinese_ci) COLLATE gb...
+                                                             ^
+SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB') COLLATE utf8mb4_bin result, collation for(result);
+     result     | pg_collation_for 
+----------------+------------------
+ 高斯DB楂樻柉DB | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB') COLLATE gbk_chinese_ci result, collation for(result); -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB') COLLATE gbk_c...
+                                                       ^
+SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB') COLLATE "binary" result, collation for(result); -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(_utf8mb4'高斯DB' , _gbk'高斯DB') COLLATE "bina...
+                                                       ^
+SELECT CONCAT(futf8_uni , futf8_gen) COLLATE utf8mb4_bin result, collation for(result) FROM t_diff_charset_columns;
+    result    | pg_collation_for 
+--------------+------------------
+ 高斯db高斯db | utf8mb4_bin
+(1 row)
+
+SELECT CONCAT(futf8_uni , futf8_gen) COLLATE gbk_chinese_ci result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(futf8_uni , futf8_gen) COLLATE gbk_chinese_ci ...
+                                             ^
+-- -- -- for binary argument string function
+SELECT CONCAT(_utf8mb4'高斯DB', _binary'高斯DB') COLLATE "binary" result, collation for(result); -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(_utf8mb4'高斯DB', _binary'高斯DB') COLLATE "bi...
+                                                         ^
+SELECT CONCAT(_utf8mb4'高斯DB', _binary'高斯DB') COLLATE utf8mb4_unicode_ci result, collation for(result);
+          result          |  pg_collation_for  
+--------------------------+--------------------
+ 高斯DB\xe9ab98e696af4442 | utf8mb4_unicode_ci
+(1 row)
+
+SELECT CONCAT(futf8_uni, fbytea) COLLATE "binary" result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(futf8_uni, fbytea) COLLATE "binary" result, co...
+                                         ^
+SELECT CONCAT(futf8_uni, fbytea) COLLATE gbk_chinese_ci result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: SELECT CONCAT(futf8_uni, fbytea) COLLATE gbk_chinese_ci resu...
+                                         ^
+-- -- -- for binary function
+SELECT CONVERT(fbytea, 'UTF8', 'GBK') COLLATE "binary" result, collation for(result) FROM t_diff_charset_columns; -- pg_collation_for binary type ERROR
+ERROR:  collations are not supported by type bytea
+CONTEXT:  referenced column: pg_collation_for
+SELECT CONVERT(fbytea, 'UTF8', 'GBK') COLLATE "binary" result FROM t_diff_charset_columns;
+     result     
+----------------
+ \xb8dfcbb94442
+(1 row)
+
+SELECT CONCAT(CONVERT(fbytea, 'UTF8', 'GBK'), futf8_uni) result, collation for(result) FROM t_diff_charset_columns;
+        result        |  pg_collation_for  
+----------------------+--------------------
+ \xb8dfcbb94442高斯db | utf8mb4_general_ci
+(1 row)
+
+SELECT CONCAT(CONVERT(fbytea, 'UTF8', 'GBK'), futf8_uni) COLLATE "binary" result, collation for(result) FROM t_diff_charset_columns; -- ERROR
+ERROR:  COLLATION "binary" is not valid for CHARACTER SET "UTF8"
+LINE 1: ...CONCAT(CONVERT(fbytea, 'UTF8', 'GBK'), futf8_uni) COLLATE "b...
+                                                             ^
+SELECT CONCAT(CONVERT(fbytea, 'UTF8', 'GBK'), futf8_uni) COLLATE utf8mb4_unicode_ci result, collation for(result) FROM t_diff_charset_columns;
+        result        |  pg_collation_for  
+----------------------+--------------------
+ \xb8dfcbb94442高斯db | utf8mb4_unicode_ci
+(1 row)
+
+DROP TABLE t_diff_charset_columns;
+-- -- -- DML 中文 utf8mb4 COLUMNS
+DROP TABLE IF EXISTS t_charset_utf8mb4;
+NOTICE:  table "t_charset_utf8mb4" does not exist, skipping
+CREATE TABLE t_charset_utf8mb4(
+	id int auto_increment primary key,
+	a text charset utf8mb4 collate 'utf8mb4_bin',
+	b bytea
+);
+NOTICE:  CREATE TABLE will create implicit sequence "t_charset_utf8mb4_id_seq" for serial column "t_charset_utf8mb4.id"
+NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "t_charset_utf8mb4_pkey" for table "t_charset_utf8mb4"
+INSERT INTO t_charset_utf8mb4(a,b) VALUES('高斯', '高斯');
+INSERT INTO t_charset_utf8mb4(a,b) VALUES('楂樻柉', '楂樻柉');
+INSERT INTO t_charset_utf8mb4(a,b) VALUES('高斯DB', '高斯DB');
+INSERT INTO t_charset_utf8mb4(a,b) VALUES(_gbk'高斯DB', (_gbk'高斯DB')::bytea);
+INSERT INTO t_charset_utf8mb4(a,b) VALUES(_gbk'高斯DB' COLLATE 'gbk_chinese_ci',
+    (_gbk'高斯DB' COLLATE 'gbk_chinese_ci')::bytea);
+INSERT INTO t_charset_utf8mb4 SELECT 6,_gbk'高斯DB', (_gbk'高斯DB')::bytea;
+-- -- -- -- test deparse for explain and select into
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯DB' LIMIT 1;
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_utf8mb4
+         Filter: (a = '楂樻柉DB'::text COLLATE utf8mb4_bin)
+(3 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯DB' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       4 | 楂樻柉DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci LIMIT 1;
+                   QUERY PLAN                   
+------------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_utf8mb4
+         Filter: ((a)::text = '楂樻柉db'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci LIMIT 1 into @id_res,@a_res;
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: ..._utf8mb4 WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci LIMIT 1...
+                                                             ^
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       4 | 楂樻柉DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a COLLATE utf8mb4_unicode_ci =_gbk'高斯db' LIMIT 1;
+                                QUERY PLAN                                 
+---------------------------------------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_utf8mb4
+         Filter: ((a)::text = '楂樻柉db'::text COLLATE utf8mb4_unicode_ci)
+(3 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a COLLATE utf8mb4_unicode_ci =_gbk'高斯db' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       4 | 楂樻柉DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯DB' LIMIT 1;
+              QUERY PLAN              
+--------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_utf8mb4
+         Filter: (a = '高斯DB'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯DB' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       3 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_utf8mb4
+         Filter: (a = '高斯db'::text COLLATE utf8mb4_unicode_ci)
+(3 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       3 | 高斯DB
+(1 row)
+
+-- -- -- -- test condition
+SELECT * FROM t_charset_utf8mb4 WHERE a='楂樻柉' ORDER BY id;
+ id |   a    |          b           
+----+--------+----------------------
+  2 | 楂樻柉 | \xe6a582e6a8bbe69f89
+(1 row)
+
+SELECT * FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯' ORDER BY id;
+ id |  a   |       b        
+----+------+----------------
+  1 | 高斯 | \xe9ab98e696af
+(1 row)
+
+SELECT * FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  3 | 高斯DB | \xe9ab98e696af4442
+(1 row)
+
+SELECT * FROM t_charset_utf8mb4 WHERE a=_binary'高斯DB' ORDER BY id;
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT * FROM t_charset_utf8mb4 WHERE a=_binary'高斯DB' ORDE...
+                                               ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT * FROM t_charset_utf8mb4 WHERE a=_gbk'高斯DB' ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  4 | 楂樻柉DB | \xe9ab98e696af4442
+  5 | 楂樻柉DB | \xe9ab98e696af4442
+  6 | 楂樻柉DB | \xe9ab98e696af4442
+(3 rows)
+
+SELECT * FROM t_charset_utf8mb4 WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  4 | 楂樻柉DB | \xe9ab98e696af4442
+  5 | 楂樻柉DB | \xe9ab98e696af4442
+  6 | 楂樻柉DB | \xe9ab98e696af4442
+(3 rows)
+
+UPDATE t_charset_utf8mb4 SET a='高斯DB', b='高斯DB'
+    WHERE a=_gbk'高斯DB' COLLATE 'gbk_chinese_ci';
+UPDATE t_charset_utf8mb4 SET a=_gbk'高斯DB', b=(_gbk'高斯DB')::bytea
+	WHERE a='楂樻柉';
+UPDATE t_charset_utf8mb4 SET a=_utf8mb4'高斯DB', b=(_utf8mb4'高斯DB')::bytea
+	WHERE a=_gbk'高斯DB';
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  1 | 高斯   | \xe9ab98e696af
+  2 | 高斯DB | \xe9ab98e696af4442
+  3 | 高斯DB | \xe9ab98e696af4442
+  4 | 高斯DB | \xe9ab98e696af4442
+  5 | 高斯DB | \xe9ab98e696af4442
+  6 | 高斯DB | \xe9ab98e696af4442
+(6 rows)
+
+DELETE FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯';
+DELETE FROM t_charset_utf8mb4 WHERE a::bytea=_binary'高斯DB';
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id | a | b 
+----+---+---
+(0 rows)
+
+-- -- -- -- test assign expr
+INSERT INTO t_charset_utf8mb4(a,b) VALUES(CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea);
+INSERT INTO t_charset_utf8mb4 SELECT 0, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea;
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  7 | 高斯DB | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+INSERT INTO t_charset_utf8mb4(id,a,b) VALUES(7, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea) ON DUPLICATE KEY UPDATE a=CONCAT('高斯','db');
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+UPDATE t_charset_utf8mb4 SET a=CONCAT('DB','高斯'), b=(CONCAT('DB','高斯'))::bytea
+	WHERE a=CONCAT('高斯','DB');
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | DB高斯 | \x4442e9ab98e696af
+(2 rows)
+
+DROP TABLE IF EXISTS t_charset_utf8mb4;
+-- -- -- DML 中文 gbk COLUMNS
+DROP TABLE IF EXISTS t_charset_gbk;
+NOTICE:  table "t_charset_gbk" does not exist, skipping
+CREATE TABLE t_charset_gbk(
+	id int auto_increment primary key,
+	a text charset gbk collate "gbk_bin",
+	b bytea
+);
+NOTICE:  CREATE TABLE will create implicit sequence "t_charset_gbk_id_seq" for serial column "t_charset_gbk.id"
+NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "t_charset_gbk_pkey" for table "t_charset_gbk"
+INSERT INTO t_charset_gbk(a,b) VALUES('高斯', '高斯');
+INSERT INTO t_charset_gbk(a,b) VALUES('高斯DB', '高斯DB');
+INSERT INTO t_charset_gbk(a,b) VALUES(_gbk'高斯DB', (_gbk'高斯DB')::bytea);
+INSERT INTO t_charset_gbk(a,b) VALUES(_gbk'高斯DB' COLLATE 'gbk_chinese_ci',
+    (_gbk'高斯DB' COLLATE 'gbk_chinese_ci')::bytea);
+INSERT INTO t_charset_gbk(a,b) VALUES('楂樻柉', '楂樻柉');
+INSERT INTO t_charset_gbk SELECT 6,_gbk'高斯DB', (_gbk'高斯DB')::bytea;
+-- -- -- -- test deparse for explain and select into
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯DB' LIMIT 1;
+               QUERY PLAN               
+----------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: (a = '楂樻柉DB'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯DB' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       3 | 楂樻柉DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci LIMIT 1;
+               QUERY PLAN               
+----------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: (a = '楂樻柉db'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci LIMIT 1 into @id_res,@a_res;
+ERROR:  COLLATION "gbk_chinese_ci" is not valid for CHARACTER SET "UTF8"
+LINE 1: ... t_charset_gbk WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci L...
+                                                             ^
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       3 | 楂樻柉DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯DB' LIMIT 1;
+              QUERY PLAN              
+--------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: (a = '高斯DB'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯DB' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       2 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1;
+                               QUERY PLAN                                
+-------------------------------------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: ((a)::text = '高斯db'::text COLLATE utf8mb4_unicode_ci)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       2 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a COLLATE gbk_chinese_ci =_utf8mb4'高斯db' LIMIT 1;
+                  QUERY PLAN                  
+----------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: ((a)::text = '高斯db'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a COLLATE gbk_chinese_ci =_utf8mb4'高斯db' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       2 | 高斯DB
+(1 row)
+
+-- -- -- -- test condition
+SELECT * FROM t_charset_gbk WHERE a=_utf8mb4'高斯' ORDER BY id;
+ id |  a   |       b        
+----+------+----------------
+  1 | 高斯 | \xe9ab98e696af
+(1 row)
+
+SELECT * FROM t_charset_gbk WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  2 | 高斯DB | \xe9ab98e696af4442
+(1 row)
+
+SELECT * FROM t_charset_gbk WHERE a=_binary'高斯DB' ORDER BY id;
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT * FROM t_charset_gbk WHERE a=_binary'高斯DB' ORDER BY...
+                                           ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT * FROM t_charset_gbk WHERE a=_gbk'高斯DB' ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  3 | 楂樻柉DB | \xe9ab98e696af4442
+  4 | 楂樻柉DB | \xe9ab98e696af4442
+  6 | 楂樻柉DB | \xe9ab98e696af4442
+(3 rows)
+
+SELECT * FROM t_charset_gbk WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  3 | 楂樻柉DB | \xe9ab98e696af4442
+  4 | 楂樻柉DB | \xe9ab98e696af4442
+  6 | 楂樻柉DB | \xe9ab98e696af4442
+(3 rows)
+
+SELECT * FROM t_charset_gbk WHERE a=_gbk'高斯' ORDER BY id;
+ id |   a    |          b           
+----+--------+----------------------
+  5 | 楂樻柉 | \xe6a582e6a8bbe69f89
+(1 row)
+
+SELECT * FROM t_charset_gbk WHERE a='楂樻柉' ORDER BY id;
+ id |   a    |          b           
+----+--------+----------------------
+  5 | 楂樻柉 | \xe6a582e6a8bbe69f89
+(1 row)
+
+UPDATE t_charset_gbk SET a='高斯DB', b='高斯DB'
+	WHERE a=_gbk'高斯DB' COLLATE 'gbk_chinese_ci';
+UPDATE t_charset_gbk SET a=_gbk'高斯DB', b=(_gbk'高斯DB')::bytea
+	WHERE a='楂樻柉';
+UPDATE t_charset_gbk SET a=_utf8mb4'高斯DB', b=(_utf8mb4'高斯DB')::bytea
+	WHERE a=_gbk'高斯DB';
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  1 | 高斯   | \xe9ab98e696af
+  2 | 高斯DB | \xe9ab98e696af4442
+  3 | 高斯DB | \xe9ab98e696af4442
+  4 | 高斯DB | \xe9ab98e696af4442
+  5 | 高斯DB | \xe9ab98e696af4442
+  6 | 高斯DB | \xe9ab98e696af4442
+(6 rows)
+
+DELETE FROM t_charset_gbk WHERE a=_utf8mb4'高斯';
+DELETE FROM t_charset_gbk WHERE a::bytea=_binary'高斯DB'; -- DELETE 0
+DELETE FROM t_charset_gbk WHERE a::bytea= E'\\xB8DFCBB94442'::bytea;
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id | a | b 
+----+---+---
+(0 rows)
+
+-- -- -- -- test assign expr
+INSERT INTO t_charset_gbk(a,b) VALUES(CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea);
+INSERT INTO t_charset_gbk SELECT 0, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea;
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  7 | 高斯DB | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+INSERT INTO t_charset_gbk(id,a,b) VALUES(7, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea) ON DUPLICATE KEY UPDATE a=CONCAT('高斯','db');
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+UPDATE t_charset_gbk SET a=CONCAT('DB','高斯'), b=(CONCAT('DB','高斯'))::bytea
+	WHERE a=CONCAT('高斯','DB');
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | DB高斯 | \x4442e9ab98e696af
+(2 rows)
+
+DROP TABLE IF EXISTS t_charset_gbk;
+-- -- test partkey
+CREATE TABLE t_multi_charset_partkey (part varchar(32) collate utf8mb4_general_ci, a int)
+    PARTITION BY RANGE(part) (
+        partition p1 values less than('高斯DB'),
+        partition p2 values less than('高斯db'),
+        partition p3 values less than(MAXVALUE)
+); -- ERROR
+ERROR:  partition bound of partition "p2" is too low
+CREATE TABLE t_multi_charset_partkey (part varchar(32) collate utf8mb4_general_ci, a int)
+    PARTITION BY RANGE(part) (
+        partition p1 values less than('楂樻柉DB'),
+        partition p2 values less than(_gbk'高斯db'),
+        partition p3 values less than(MAXVALUE)
+); -- ERROR
+ERROR:  partition bound of partition "p2" is too low
+CREATE TABLE t_multi_charset_partkey (part varchar(32) collate utf8mb4_general_ci, a int)
+    PARTITION BY LIST(part) (
+        partition p1 values('高斯DB'),
+        partition p2 values('高斯db')
+); -- ERROR
+ERROR:  list partition p1 and p2 has overlapped value
+CREATE TABLE t_multi_charset_partkey (part varchar(32) collate utf8mb4_general_ci, a int)
+    PARTITION BY RANGE(part) (
+        PARTITION pass START('高斯DB') END('高斯db'),
+        PARTITION excellent START('高斯db') END(MAXVALUE)
+); -- unsupported
+ERROR:  datatype of column "part" is unsupported for partition key in start/end clause.
+HINT:  Valid datatypes are: smallint, int, bigint, float4/real, float8/double, numeric, date and timestamp [with time zone].
+-- -- -- utf8mb4
+CREATE TABLE t_multi_charset_partkey (part text collate utf8mb4_bin, a int)
+    PARTITION BY HASH(part) (
+        partition p1,
+        partition p2,
+        partition p3,
+        partition p4
+);
+-- -- -- insert
+INSERT INTO t_multi_charset_partkey VALUES(_gbk'高斯DB', 1);
+INSERT INTO t_multi_charset_partkey VALUES(_gbk'高斯db', 2);
+INSERT INTO t_multi_charset_partkey VALUES(_utf8mb4'高斯DB1', 3);
+INSERT INTO t_multi_charset_partkey VALUES(_utf8mb4'高斯db1', 4);
+-- -- -- select
+SELECT * FROM t_multi_charset_partkey PARTITION(p1) order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+ 楂樻柉db | 2
+(2 rows)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p2) order by 1,2;
+  part   | a 
+---------+---
+ 高斯db1 | 4
+(1 row)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p3) order by 1,2;
+ part | a 
+------+---
+(0 rows)
+
+SELECT * FROM t_multi_charset_partkey PARTITION FOR(_gbk'高斯db') order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+ 楂樻柉db | 2
+(2 rows)
+
+SELECT * FROM t_multi_charset_partkey PARTITION FOR(_utf8mb4'高斯DB1') order by 1,2;
+  part   | a 
+---------+---
+ 高斯DB1 | 3
+(1 row)
+
+-- -- -- partition pruning
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' order by 1,2;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Sort
+   Sort Key: a
+   ->  Partitioned Seq Scan on t_multi_charset_partkey
+         Filter: (part = '楂樻柉DB'::text COLLATE utf8mb4_bin)
+         Selected Partitions:  1
+(5 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+(1 row)
+
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_utf8mb4'高斯db1' order by 1,2;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Sort
+   Sort Key: a
+   ->  Partitioned Seq Scan on t_multi_charset_partkey
+         Filter: (part = '高斯db1'::text)
+         Selected Partitions:  2
+(5 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_utf8mb4'高斯db1' order by 1,2;
+  part   | a 
+---------+---
+ 高斯db1 | 4
+(1 row)
+
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' collate gbk_chinese_ci order by 1,2; -- ALL PARTS
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Sort
+   Sort Key: part COLLATE utf8mb4_bin, a
+   ->  Partition Iterator
+         Iterations: 4
+         ->  Partitioned Seq Scan on t_multi_charset_partkey
+               Filter: ((part)::text = '楂樻柉DB'::text)
+               Selected Partitions:  1..4
+(7 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' collate gbk_chinese_ci order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+ 楂樻柉db | 2
+(2 rows)
+
+-- -- -- partiton ddl
+ALTER TABLE t_multi_charset_partkey SPLIT PARTITION p1 AT ( '高斯DB' ) INTO ( PARTITION p1, PARTITION p4); -- not support
+ERROR:  can not split LIST/HASH partition table
+ALTER TABLE t_multi_charset_partkey RENAME PARTITION FOR(_gbk'高斯db') TO newp1;
+SELECT * FROM t_multi_charset_partkey PARTITION(newp1) order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+ 楂樻柉db | 2
+(2 rows)
+
+DROP TABLE t_multi_charset_partkey;
+-- -- -- utf8mb4
+CREATE TABLE t_multi_charset_partkey (part text collate utf8mb4_bin, a int)
+    PARTITION BY RANGE(part) (
+        partition p1 values less than('楂樻柉DB'),
+        partition p2 values less than('楂樻柉db'),
+        partition p3 values less than('高斯DB'),
+        partition p4 values less than('高斯db'),
+        partition p5 values less than(MAXVALUE)
+);
+-- -- -- insert
+INSERT INTO t_multi_charset_partkey VALUES(_gbk'高斯DB', 1);
+INSERT INTO t_multi_charset_partkey VALUES(_gbk'高斯db', 2);
+INSERT INTO t_multi_charset_partkey VALUES(_utf8mb4'高斯DB', 3);
+INSERT INTO t_multi_charset_partkey VALUES(_utf8mb4'高斯db', 4);
+-- -- -- select
+SELECT * FROM t_multi_charset_partkey PARTITION(p1) order by 1,2;
+ part | a 
+------+---
+(0 rows)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p2) order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+(1 row)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p3) order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉db | 2
+(1 row)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p4) order by 1,2;
+  part  | a 
+--------+---
+ 高斯DB | 3
+(1 row)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p5) order by 1,2;
+  part  | a 
+--------+---
+ 高斯db | 4
+(1 row)
+
+SELECT * FROM t_multi_charset_partkey PARTITION FOR(_gbk'高斯db') order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉db | 2
+(1 row)
+
+SELECT * FROM t_multi_charset_partkey PARTITION FOR(_utf8mb4'高斯DB') order by 1,2;
+  part  | a 
+--------+---
+ 高斯DB | 3
+(1 row)
+
+-- -- -- partition pruning
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' order by 1,2;
+                          QUERY PLAN                           
+---------------------------------------------------------------
+ Sort
+   Sort Key: a
+   ->  Partitioned Seq Scan on t_multi_charset_partkey
+         Filter: (part = '楂樻柉DB'::text COLLATE utf8mb4_bin)
+         Selected Partitions:  2
+(5 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+(1 row)
+
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_utf8mb4'高斯db' order by 1,2;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Sort
+   Sort Key: a
+   ->  Partitioned Seq Scan on t_multi_charset_partkey
+         Filter: (part = '高斯db'::text)
+         Selected Partitions:  5
+(5 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_utf8mb4'高斯db' order by 1,2;
+  part  | a 
+--------+---
+ 高斯db | 4
+(1 row)
+
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' collate gbk_chinese_ci order by 1,2; -- ALL PARTS
+                         QUERY PLAN                          
+-------------------------------------------------------------
+ Sort
+   Sort Key: part COLLATE utf8mb4_bin, a
+   ->  Partition Iterator
+         Iterations: 5
+         ->  Partitioned Seq Scan on t_multi_charset_partkey
+               Filter: ((part)::text = '楂樻柉DB'::text)
+               Selected Partitions:  1..5
+(7 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' collate gbk_chinese_ci order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+ 楂樻柉db | 2
+(2 rows)
+
+-- -- -- partiton ddl
+ALTER TABLE t_multi_charset_partkey SPLIT PARTITION FOR(_gbk'高斯DB') AT (_gbk'高斯DB1 ') INTO (PARTITION p2_1, PARTITION p2_2);
+INSERT INTO t_multi_charset_partkey VALUES(_gbk'高斯DB1', 1);
+SELECT * FROM t_multi_charset_partkey PARTITION(p2_1) order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉DB | 1
+(1 row)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p2_2) order by 1,2;
+   part    | a 
+-----------+---
+ 楂樻柉DB1 | 1
+(1 row)
+
+ALTER TABLE t_multi_charset_partkey RENAME PARTITION FOR(_gbk'高斯db') TO p3_1;
+SELECT * FROM t_multi_charset_partkey PARTITION(p3_1) order by 1,2;
+   part   | a 
+----------+---
+ 楂樻柉db | 2
+(1 row)
+
+DROP TABLE t_multi_charset_partkey;
+-- -- -- utf8mb4
+CREATE TABLE t_multi_charset_partkey (part varchar(32) collate utf8mb4_unicode_ci, part2 varchar(32) collate utf8mb4_general_ci, a int)
+    PARTITION BY LIST COLUMNS(part, part2) (
+        partition p1 values in(('楂樻柉DB', '楂樻柉db')),
+        partition p2 values in(('高斯db', '高斯DB'))
+);
+-- -- -- insert
+INSERT INTO t_multi_charset_partkey VALUES(_gbk'高斯DB', _gbk'高斯DB', 1);
+INSERT INTO t_multi_charset_partkey VALUES(_gbk'高斯db', _gbk'高斯db', 2);
+INSERT INTO t_multi_charset_partkey VALUES(_utf8mb4'高斯DB', _utf8mb4'高斯DB', 3);
+INSERT INTO t_multi_charset_partkey VALUES(_utf8mb4'高斯db', _utf8mb4'高斯db', 4);
+-- -- -- select
+SELECT * FROM t_multi_charset_partkey PARTITION(p1) order by 1,2;
+   part   |  part2   | a 
+----------+----------+---
+ 楂樻柉DB | 楂樻柉DB | 1
+ 楂樻柉db | 楂樻柉db | 2
+(2 rows)
+
+SELECT * FROM t_multi_charset_partkey PARTITION(p2) order by 1,2;
+  part  | part2  | a 
+--------+--------+---
+ 高斯DB | 高斯DB | 3
+ 高斯db | 高斯db | 4
+(2 rows)
+
+SELECT * FROM t_multi_charset_partkey PARTITION FOR(_gbk'高斯DB', _gbk'高斯db') order by 1,2;
+   part   |  part2   | a 
+----------+----------+---
+ 楂樻柉DB | 楂樻柉DB | 1
+ 楂樻柉db | 楂樻柉db | 2
+(2 rows)
+
+SELECT * FROM t_multi_charset_partkey PARTITION FOR(_utf8mb4'高斯db', _utf8mb4'高斯db') order by 1,2;
+  part  | part2  | a 
+--------+--------+---
+ 高斯DB | 高斯DB | 3
+ 高斯db | 高斯db | 4
+(2 rows)
+
+-- -- -- partition pruning
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' order by 1,2;
+                                  QUERY PLAN                                  
+------------------------------------------------------------------------------
+ Sort
+   Sort Key: part2 COLLATE utf8mb4_general_ci
+   ->  Partitioned Seq Scan on t_multi_charset_partkey
+         Filter: ((part)::text = '楂樻柉DB'::text COLLATE utf8mb4_unicode_ci)
+         Selected Partitions:  1
+(5 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' order by 1,2;
+   part   |  part2   | a 
+----------+----------+---
+ 楂樻柉DB | 楂樻柉DB | 1
+ 楂樻柉db | 楂樻柉db | 2
+(2 rows)
+
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_utf8mb4'高斯db' order by 1,2;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Sort
+   Sort Key: part2 COLLATE utf8mb4_general_ci
+   ->  Partitioned Seq Scan on t_multi_charset_partkey
+         Filter: ((part)::text = '高斯db'::text)
+         Selected Partitions:  2
+(5 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_utf8mb4'高斯db' order by 1,2;
+  part  | part2  | a 
+--------+--------+---
+ 高斯DB | 高斯DB | 3
+ 高斯db | 高斯db | 4
+(2 rows)
+
+EXPLAIN (costs off)
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' collate gbk_chinese_ci order by 1,2; -- ALL PARTS
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Sort
+   Sort Key: part COLLATE utf8mb4_unicode_ci, part2 COLLATE utf8mb4_general_ci
+   ->  Partition Iterator
+         Iterations: 2
+         ->  Partitioned Seq Scan on t_multi_charset_partkey
+               Filter: ((part)::text = '楂樻柉DB'::text)
+               Selected Partitions:  1..2
+(7 rows)
+
+SELECT * FROM t_multi_charset_partkey WHERE part=_gbk'高斯DB' collate gbk_chinese_ci order by 1,2;
+   part   |  part2   | a 
+----------+----------+---
+ 楂樻柉DB | 楂樻柉DB | 1
+ 楂樻柉db | 楂樻柉db | 2
+(2 rows)
+
+-- -- -- partiton ddl
+ALTER TABLE t_multi_charset_partkey RENAME PARTITION FOR(_gbk'高斯DB', _gbk'高斯db') TO p1_1;
+SELECT * FROM t_multi_charset_partkey PARTITION(p1_1) order by 1,2;
+   part   |  part2   | a 
+----------+----------+---
+ 楂樻柉DB | 楂樻柉DB | 1
+ 楂樻柉db | 楂樻柉db | 2
+(2 rows)
+
+DROP TABLE t_multi_charset_partkey;
+-- -- -- gbk
+CREATE TABLE t_multi_charset_partkey (part varchar(32) CHARACTER set gbk collate gbk_bin, a int)
+    PARTITION BY RANGE(part) (
+        partition p1 values less than('高斯DB'),
+        partition p2 values less than(MAXVALUE)
+); -- error
+ERROR:  difference between the charset of column part and the database encoding has not supported
+-- -- test column default value
+CREATE TABLE t_default_charset(
+    a varchar(32) character set gbk collate gbk_bin DEFAULT '高斯DB',
+    b varchar(32) character set utf8mb4 collate utf8mb4_unicode_ci GENERATED ALWAYS AS (a) STORED,
+    c varchar(32) character set utf8mb4 collate utf8mb4_unicode_ci GENERATED ALWAYS AS (a||_utf8mb4'高斯DB') STORED);
+INSERT INTO t_default_charset VALUES(DEFAULT, DEFAULT, DEFAULT);
+select * from t_default_charset;
+   a    |   b    |      c       
+--------+--------+--------------
+ 高斯DB | 高斯DB | 高斯DB高斯DB
+(1 row)
+
+DROP TABLE t_default_charset;
+-- ------------------------------------------
+-- SET NAMES GBK;
+SET NAMES 'GBK';
+SHOW client_encoding;
+ client_encoding 
+-----------------
+ GBK
+(1 row)
+
+SHOW server_encoding;
+ server_encoding 
+-----------------
+ UTF8
+(1 row)
+
+SHOW character_set_connection;
+ character_set_connection 
+--------------------------
+ GBK
+(1 row)
+
+SHOW collation_connection;
+ collation_connection 
+----------------------
+ gbk_chinese_ci
+(1 row)
+
+-- 中文
+SELECT CAST('高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CAST(_binary'高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CAST(_utf8mb4'高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT CAST(_gbk'高斯' AS bytea);
+     bytea      
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _binary'高斯';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _utf8mb4'高斯';
+ ?column? 
+----------
+ ��˹
+(1 row)
+
+SELECT _gbk'高斯';
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT _binary X'E9AB98E696AF';
+    ?column?    
+----------------
+ \xe9ab98e696af
+(1 row)
+
+SELECT _utf8mb4 X'E9AB98E696AF';
+ ?column? 
+----------
+ ��˹
+(1 row)
+
+SELECT _gbk X'E9AB98E696AF';
+ ?column? 
+----------
+ 高斯
+(1 row)
+
+SELECT '楂樻柉'; -- ERROR '楂樻柉'(\xe6a582e6a8bbe69f89) will be converted to utf8 first
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+SELECT CONVERT_TO(_utf8mb4'楂樻柉', 'gbk'); -- ERROR '楂樻柉'(\xe6a582e6a8bbe69f89) will be converted to utf8 first
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+SELECT CONVERT_TO(_utf8mb4'高斯', 'gbk');
+ convert_to 
+------------
+ \xb8dfcbb9
+(1 row)
+
+-- -- -- DML 中文 utf8mb4 COLUMNS
+DROP TABLE IF EXISTS t_charset_utf8mb4;
+NOTICE:  table "t_charset_utf8mb4" does not exist, skipping
+CREATE TABLE t_charset_utf8mb4(
+	id int auto_increment primary key,
+	a text charset utf8mb4 collate 'utf8mb4_bin',
+	b bytea
+);
+NOTICE:  CREATE TABLE will create implicit sequence "t_charset_utf8mb4_id_seq" for serial column "t_charset_utf8mb4.id"
+NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "t_charset_utf8mb4_pkey" for table "t_charset_utf8mb4"
+INSERT INTO t_charset_utf8mb4(a,b) VALUES('高斯', '高斯');
+INSERT INTO t_charset_utf8mb4(a,b) VALUES('楂樻柉', '楂樻柉'); -- ERROR
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+INSERT INTO t_charset_utf8mb4(a,b) VALUES('高斯DB', '高斯DB');
+INSERT INTO t_charset_utf8mb4(a,b) VALUES(_utf8mb4'高斯DB', (_utf8mb4'高斯DB')::bytea);
+INSERT INTO t_charset_utf8mb4(a,b) VALUES(_utf8mb4'高斯DB' COLLATE 'utf8mb4_unicode_ci',
+    (_utf8mb4'高斯DB' COLLATE 'utf8mb4_unicode_ci')::bytea);
+INSERT INTO t_charset_utf8mb4 SELECT 6,_utf8mb4'高斯DB', (_utf8mb4'高斯DB')::bytea;
+-- -- -- -- test deparse for explain and select into
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯DB';
+            QUERY PLAN            
+----------------------------------
+ Seq Scan on t_charset_utf8mb4
+   Filter: (a = '高斯DB'::text)
+(2 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯DB' into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       2 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci;
+                QUERY PLAN                
+------------------------------------------
+ Seq Scan on t_charset_utf8mb4
+   Filter: ((a)::text = '高斯db'::text)
+(2 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       2 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a COLLATE utf8mb4_unicode_ci =_gbk'高斯db';
+                QUERY PLAN                
+------------------------------------------
+ Seq Scan on t_charset_utf8mb4
+   Filter: ((a)::text = '高斯db'::text)
+(2 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a COLLATE utf8mb4_unicode_ci =_gbk'高斯db' into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       2 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯DB' LIMIT 1;
+              QUERY PLAN              
+--------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_utf8mb4
+         Filter: (a = '��˹DB'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯DB' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       3 | ��˹DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1;
+              QUERY PLAN              
+--------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_utf8mb4
+         Filter: (a = '��˹db'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1 into @id_res,@a_res;
+ERROR:  COLLATION "utf8mb4_unicode_ci" is not valid for CHARACTER SET "GBK"
+LINE 1: ...harset_utf8mb4 WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_un...
+                                                             ^
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       3 | ��˹DB
+(1 row)
+
+-- -- -- -- test condition
+SELECT * FROM t_charset_utf8mb4 WHERE a='楂樻柉' ORDER BY id; -- ERROR
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+SELECT * FROM t_charset_utf8mb4 WHERE a=_gbk'高斯' ORDER BY id;
+ id |   a    |       b        
+----+--------+----------------
+  1 | 高斯 | \xe9ab98e696af
+(1 row)
+
+SELECT * FROM t_charset_utf8mb4 WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  2 | 高斯DB | \xe9ab98e696af4442
+(1 row)
+
+SELECT * FROM t_charset_utf8mb4 WHERE a=_binary'高斯DB' ORDER BY id; -- ERROR
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT * FROM t_charset_utf8mb4 WHERE a=_binary'高斯DB' OR...
+                                               ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT * FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯DB' ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  3 | ��˹DB | \xe9ab98e696af4442
+  4 | ��˹DB | \xe9ab98e696af4442
+  6 | ��˹DB | \xe9ab98e696af4442
+(3 rows)
+
+SELECT * FROM t_charset_utf8mb4 WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  3 | ��˹DB | \xe9ab98e696af4442
+  4 | ��˹DB | \xe9ab98e696af4442
+  6 | ��˹DB | \xe9ab98e696af4442
+(3 rows)
+
+UPDATE t_charset_utf8mb4 SET a='高斯DB', b='高斯DB'
+    WHERE a=_utf8mb4'高斯DB' COLLATE 'utf8mb4_unicode_ci';
+UPDATE t_charset_utf8mb4 SET a=_utf8mb4'高斯DB', b=(_utf8mb4'高斯DB')::bytea
+	WHERE a='楂樻柉'; -- ERROR
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+UPDATE t_charset_utf8mb4 SET a=_utf8mb4'高斯DB', b=(_utf8mb4'高斯DB')::bytea
+	WHERE a=_utf8mb4'高斯DB';
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  1 | 高斯   | \xe9ab98e696af
+  2 | 高斯DB | \xe9ab98e696af4442
+  3 | 高斯DB | \xe9ab98e696af4442
+  4 | 高斯DB | \xe9ab98e696af4442
+  6 | 高斯DB | \xe9ab98e696af4442
+(5 rows)
+
+DELETE FROM t_charset_utf8mb4 WHERE a='高斯';
+DELETE FROM t_charset_utf8mb4 WHERE a='高斯DB';
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id | a | b 
+----+---+---
+(0 rows)
+
+-- -- -- -- test assign expr
+INSERT INTO t_charset_utf8mb4(a,b) VALUES(CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea);
+INSERT INTO t_charset_utf8mb4 SELECT 0, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea;
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  7 | 高斯DB | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+INSERT INTO t_charset_utf8mb4(id,a,b) VALUES(7, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea) ON DUPLICATE KEY UPDATE a=CONCAT('高斯','db');
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+UPDATE t_charset_utf8mb4 SET a=CONCAT('DB','高斯'), b=(CONCAT('DB','高斯'))::bytea
+	WHERE a=CONCAT('高斯','DB');
+SELECT * FROM t_charset_utf8mb4 ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | DB高斯 | \x4442e9ab98e696af
+(2 rows)
+
+DROP TABLE IF EXISTS t_charset_utf8mb4;
+-- -- -- DML 中文 gbk COLUMNS
+DROP TABLE IF EXISTS t_charset_gbk;
+NOTICE:  table "t_charset_gbk" does not exist, skipping
+CREATE TABLE t_charset_gbk(
+	id int auto_increment primary key,
+	a text charset gbk collate "gbk_bin",
+	b bytea
+);
+NOTICE:  CREATE TABLE will create implicit sequence "t_charset_gbk_id_seq" for serial column "t_charset_gbk.id"
+NOTICE:  CREATE TABLE / PRIMARY KEY will create implicit index "t_charset_gbk_pkey" for table "t_charset_gbk"
+INSERT INTO t_charset_gbk(a,b) VALUES('高斯', '高斯');
+INSERT INTO t_charset_gbk(a,b) VALUES('高斯DB', '高斯DB');
+INSERT INTO t_charset_gbk(a,b) VALUES(_utf8mb4'高斯DB', (_utf8mb4'高斯DB')::bytea);
+INSERT INTO t_charset_gbk(a,b) VALUES(_utf8mb4'高斯DB' COLLATE 'utf8mb4_unicode_ci',
+    (_utf8mb4'高斯DB' COLLATE 'utf8mb4_unicode_ci')::bytea);
+INSERT INTO t_charset_gbk(a,b) VALUES('楂樻柉', '楂樻柉'); -- ERROR
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+INSERT INTO t_charset_gbk SELECT 6,_utf8mb4'高斯DB', (_utf8mb4'高斯DB')::bytea;
+-- -- -- -- test deparse for explain and select into
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯DB';
+            QUERY PLAN            
+----------------------------------
+ Seq Scan on t_charset_gbk
+   Filter: (a = '高斯DB'::text)
+(2 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯DB' into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       2 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci;
+            QUERY PLAN            
+----------------------------------
+ Seq Scan on t_charset_gbk
+   Filter: (a = '高斯db'::text)
+(2 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res |  @a_res  
+---------+----------
+       2 | 高斯DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯DB' LIMIT 1;
+                           QUERY PLAN                            
+-----------------------------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: (a = '��˹DB'::text COLLATE pg_catalog.gbk_bin)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯DB' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       3 | ��˹DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1;
+                  QUERY PLAN                  
+----------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: ((a)::text = '��˹db'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci LIMIT 1 into @id_res,@a_res;
+ERROR:  COLLATION "utf8mb4_unicode_ci" is not valid for CHARACTER SET "GBK"
+LINE 1: ...rset_gbk WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_...
+                                                             ^
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       3 | ��˹DB
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id,a FROM t_charset_gbk WHERE a COLLATE gbk_chinese_ci =_utf8mb4'高斯db' LIMIT 1;
+                  QUERY PLAN                  
+----------------------------------------------
+ Limit
+   ->  Seq Scan on t_charset_gbk
+         Filter: ((a)::text = '��˹db'::text)
+(3 rows)
+
+SELECT id,a FROM t_charset_gbk WHERE a COLLATE gbk_chinese_ci =_utf8mb4'高斯db' LIMIT 1 into @id_res,@a_res;
+SELECT @id_res,@a_res;
+ @id_res | @a_res 
+---------+--------
+       3 | ��˹DB
+(1 row)
+
+-- -- -- -- test condition
+SELECT * FROM t_charset_gbk WHERE a=_gbk'高斯' ORDER BY id;
+ id |   a    |       b        
+----+--------+----------------
+  1 | 高斯 | \xe9ab98e696af
+(1 row)
+
+SELECT * FROM t_charset_gbk WHERE a=_gbk'高斯db' COLLATE gbk_chinese_ci ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  2 | 高斯DB | \xe9ab98e696af4442
+(1 row)
+
+SELECT * FROM t_charset_gbk WHERE a=_binary'高斯DB' ORDER BY id; -- ERROR
+ERROR:  operator does not exist: text = bytea
+LINE 1: SELECT * FROM t_charset_gbk WHERE a=_binary'高斯DB' ORDER ...
+                                           ^
+HINT:  No operator matches the given name and argument type(s). You might need to add explicit type casts.
+SELECT * FROM t_charset_gbk WHERE a=_utf8mb4'高斯DB' ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  3 | ��˹DB | \xe9ab98e696af4442
+  4 | ��˹DB | \xe9ab98e696af4442
+  6 | ��˹DB | \xe9ab98e696af4442
+(3 rows)
+
+SELECT * FROM t_charset_gbk WHERE a=_utf8mb4'高斯db' COLLATE utf8mb4_unicode_ci ORDER BY id;
+ id |   a    |         b          
+----+--------+--------------------
+  3 | ��˹DB | \xe9ab98e696af4442
+  4 | ��˹DB | \xe9ab98e696af4442
+  6 | ��˹DB | \xe9ab98e696af4442
+(3 rows)
+
+SELECT * FROM t_charset_gbk WHERE a=_utf8mb4'高斯' ORDER BY id;
+ id | a | b 
+----+---+---
+(0 rows)
+
+SELECT * FROM t_charset_gbk WHERE a='楂樻柉' ORDER BY id; -- ERROR
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+UPDATE t_charset_gbk SET a='高斯DB', b='高斯DB'
+	WHERE a=_utf8mb4'高斯DB' COLLATE 'utf8mb4_unicode_ci';
+UPDATE t_charset_gbk SET a=_utf8mb4'高斯DB', b=(_utf8mb4'高斯DB')::bytea
+	WHERE a='楂樻柉'; -- ERROR
+ERROR:  invalid byte sequence for encoding "GBK": 0x89 0x27
+UPDATE t_charset_gbk SET a=_utf8mb4'高斯DB', b=(_utf8mb4'高斯DB')::bytea
+	WHERE a=_utf8mb4'高斯DB';
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  1 | 高斯   | \xe9ab98e696af
+  2 | 高斯DB | \xe9ab98e696af4442
+  3 | 高斯DB | \xe9ab98e696af4442
+  4 | 高斯DB | \xe9ab98e696af4442
+  6 | 高斯DB | \xe9ab98e696af4442
+(5 rows)
+
+DELETE FROM t_charset_gbk WHERE a='高斯';
+DELETE FROM t_charset_gbk WHERE a::bytea= _binary'高斯DB';
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id | a | b 
+----+---+---
+(0 rows)
+
+-- -- -- -- test assign expr
+INSERT INTO t_charset_gbk(a,b) VALUES(CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea);
+INSERT INTO t_charset_gbk SELECT 0, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea;
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  7 | 高斯DB | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+INSERT INTO t_charset_gbk(id,a,b) VALUES(7, CONCAT('高斯','DB'), (CONCAT('高斯','DB'))::bytea) ON DUPLICATE KEY UPDATE a=CONCAT('高斯','db');
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | 高斯DB | \xe9ab98e696af4442
+(2 rows)
+
+UPDATE t_charset_gbk SET a=CONCAT('DB','高斯'), b=(CONCAT('DB','高斯'))::bytea
+	WHERE a=CONCAT('高斯','DB');
+SELECT * FROM t_charset_gbk ORDER BY id;
+ id |    a     |         b          
+----+----------+--------------------
+  7 | 高斯db | \xe9ab98e696af4442
+  8 | DB高斯 | \x4442e9ab98e696af
+(2 rows)
+
+DROP TABLE IF EXISTS t_charset_gbk;
+-- test multi charset
+CREATE TABLE t_diff_charset_columns(
+    futf8_bin varchar(16) CHARSET utf8mb4 COLLATE 'utf8mb4_bin',
+    futf8_uni varchar(16) CHARSET utf8mb4 COLLATE 'utf8mb4_unicode_ci',
+    futf8_gen varchar(16) CHARSET utf8mb4 COLLATE 'utf8mb4_general_ci',
+    fgbk_bin varchar(16) CHARSET gbk COLLATE 'gbk_bin',
+    fgbk_chi varchar(16) CHARSET gbk COLLATE 'gbk_chinese_ci',
+    fgb18030_bin varchar(16) CHARSET gb18030 COLLATE 'gb18030_bin',
+    fgb18030_chi varchar(16) CHARSET gb18030 COLLATE 'gb18030_chinese_ci',
+    fbytea bytea,
+    fblob blob,
+    fbit bit varying(64)
+);
+INSERT INTO t_diff_charset_columns(futf8_bin, futf8_uni, futf8_gen, fgbk_bin, fgbk_chi, fgb18030_bin, fgb18030_chi, fbytea, fblob, fbit)
+    VALUES('高斯DB', '高斯db', '高斯db', '高斯DB', '高斯db', '高斯DB', '高斯db', '高斯DB', 'E9AB98E696AF', B'111010011010101110011000111001101001011010101111');
+-- -- test character length
+SELECT futf8_bin,
+       futf8_uni,
+       fgbk_bin,
+       fgbk_chi,
+       fgb18030_bin,
+       fgb18030_chi,
+       fbytea FROM t_diff_charset_columns;
+ futf8_bin | futf8_uni | fgbk_bin | fgbk_chi | fgb18030_bin | fgb18030_chi |       fbytea       
+-----------+-----------+----------+----------+--------------+--------------+--------------------
+ 高斯DB  | 高斯db  | 高斯DB | 高斯db | 高斯DB     | 高斯db     | \xe9ab98e696af4442
+(1 row)
+
+SELECT length(futf8_bin),
+       length(futf8_uni),
+       length(fgbk_bin),
+       length(fgbk_chi),
+       length(fgb18030_bin),
+       length(fgb18030_chi),
+       length(fbytea) FROM t_diff_charset_columns; -- 5
+ length | length | length | length | length | length | length 
+--------+--------+--------+--------+--------+--------+--------
+      5 |      5 |      5 |      5 |      5 |      5 |      8
+(1 row)
+
+SELECT lengthb(futf8_bin),
+       lengthb(futf8_uni),
+       lengthb(fgbk_bin),
+       lengthb(fgbk_chi),
+       lengthb(fgb18030_bin),
+       lengthb(fgb18030_chi),
+       length(fbytea) FROM t_diff_charset_columns;
+ lengthb | lengthb | lengthb | lengthb | lengthb | lengthb | length 
+---------+---------+---------+---------+---------+---------+--------
+      11 |      11 |       8 |       8 |       8 |       8 |      8
+(1 row)
+
+-- test prefixkey index
+CREATE INDEX idx_prefixkey_futf8_bin on t_diff_charset_columns (futf8_bin(2) text_pattern_ops);
+set enable_seqscan=off;
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin LIKE '高斯%';
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Index Scan using idx_prefixkey_futf8_bin on t_diff_charset_columns
+   Index Cond: ((futf8_bin)::text = '高�'::text)
+   Filter: ((futf8_bin)::text ~~ '高斯%'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin LIKE '高斯%';
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin = '高斯DB';
+                             QUERY PLAN                             
+--------------------------------------------------------------------
+ Index Scan using idx_prefixkey_futf8_bin on t_diff_charset_columns
+   Index Cond: ((futf8_bin)::text = '高�'::text)
+   Filter: ((futf8_bin)::text = '高斯DB'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_futf8_bin) */ futf8_bin FROM t_diff_charset_columns WHERE futf8_bin = '高斯DB';
+ futf8_bin 
+-----------
+ 高斯DB
+(1 row)
+
+CREATE INDEX idx_prefixkey_fgbk_bin on t_diff_charset_columns (fgbk_bin(2) text_pattern_ops);
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin LIKE '高斯%';
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgbk_bin on t_diff_charset_columns
+   Index Cond: ((fgbk_bin)::text = '高�'::text)
+   Filter: ((fgbk_bin)::text ~~ '高斯%'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin LIKE '高斯%';
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin = '高斯DB';
+                            QUERY PLAN                             
+-------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgbk_bin on t_diff_charset_columns
+   Index Cond: ((fgbk_bin)::text = '高�'::text)
+   Filter: ((fgbk_bin)::text = '高斯DB'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgbk_bin) */ fgbk_bin FROM t_diff_charset_columns WHERE fgbk_bin = '高斯DB';
+ fgbk_bin 
+----------
+ 高斯DB
+(1 row)
+
+CREATE INDEX idx_prefixkey_fgb18030_bin on t_diff_charset_columns (fgb18030_bin(2) text_pattern_ops);
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin LIKE '高斯%';
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgb18030_bin on t_diff_charset_columns
+   Index Cond: ((fgb18030_bin)::text = '高�'::text)
+   Filter: ((fgb18030_bin)::text ~~ '高斯%'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin LIKE '高斯%';
+ fgb18030_bin 
+--------------
+ 高斯DB
+(1 row)
+
+EXPLAIN (costs false)
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin = '高斯DB';
+                              QUERY PLAN                               
+-----------------------------------------------------------------------
+ Index Scan using idx_prefixkey_fgb18030_bin on t_diff_charset_columns
+   Index Cond: ((fgb18030_bin)::text = '高�'::text)
+   Filter: ((fgb18030_bin)::text = '高斯DB'::text)
+(3 rows)
+
+SELECT /*+ indexscan(t_diff_charset_columns idx_prefixkey_fgb18030_bin) */ fgb18030_bin FROM t_diff_charset_columns WHERE fgb18030_bin = '高斯DB';
+ fgb18030_bin 
+--------------
+ 高斯DB
+(1 row)
+
+reset enable_seqscan;
+DROP TABLE t_diff_charset_columns;
+\c regression

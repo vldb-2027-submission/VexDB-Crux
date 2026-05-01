@@ -1,0 +1,111 @@
+\set srcdir '.';
+
+-- Create tables
+CREATE TABLE items (
+    id BIGINT PRIMARY KEY,
+    embedding floatvector(128)
+);
+CREATE TABLE query (
+    id BIGINT PRIMARY KEY,
+    embedding FLOATVECTOR(128)
+);
+
+-- Load data
+COPY items (id, embedding)
+FROM '@abs_srcdir@/data/diskann/vec_to_insert_10000.csv'
+DELIMITER ' '
+CSV;
+COPY query (id, embedding)
+FROM '@abs_srcdir@/data/diskann/vec_to_query_100.csv'
+DELIMITER ' '
+CSV;
+
+-- Verify data
+SELECT count(*) FROM items;
+SELECT count(*) FROM query;
+SELECT * FROM items LIMIT 5;
+SELECT * FROM query LIMIT 5;
+
+-- use large enough mem to trigger in-memory building
+SET maintenance_work_mem TO '16MB';
+
+-- Case 1: create a DiskANN index in memory (without parallel, subgraph or quantization)
+SET client_min_messages=error; CREATE INDEX idx_diskann ON items USING diskann (embedding floatvector_l2_ops);
+-- search with PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=true; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- search without PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=false; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- drop the DiskANN index
+DROP INDEX idx_diskann;
+
+-- Case 2: create a DiskANN index in memory in parallel
+SET client_min_messages=error; CREATE INDEX idx_diskann ON items USING diskann (embedding floatvector_l2_ops) WITH (parallel_workers=8);
+-- search with PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=true; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- search without PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=false; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- drop the DiskANN index
+DROP INDEX idx_diskann;
+
+-- Case 3: create a DiskANN index with PQ data in memory in parallel
+SET client_min_messages=error; CREATE INDEX idx_diskann ON items USING diskann (embedding floatvector_l2_ops) WITH (parallel_workers=8,enable_quantization=true);
+-- search with PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=true; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- search without PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=false; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- drop the DiskANN index
+DROP INDEX idx_diskann;
+
+-- use small mem to trigger tempfile or subgraph building
+SET maintenance_work_mem TO '8MB';
+
+-- Case 4: create a DiskANN index from temp files in parallel
+SET client_min_messages=error; CREATE INDEX idx_diskann ON items USING diskann (embedding floatvector_l2_ops) WITH (parallel_workers=8);
+-- search with PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=true; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- search without PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=false; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- drop the DiskANN index
+DROP INDEX idx_diskann;
+
+-- Case 5: create a DiskANN index with subgraphs from temp files in parallel
+SET client_min_messages=error; CREATE INDEX idx_diskann ON items USING diskann (embedding floatvector_l2_ops) WITH (parallel_workers=8,enable_subgraph=true);
+-- search with PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=true; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 1;
+-- search without PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=false; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 1;
+-- drop the DiskANN index
+DROP INDEX idx_diskann;
+
+-- Case 6: create a DiskANN index with PQ data from temp files in parallel
+SET client_min_messages=error; CREATE INDEX idx_diskann ON items USING diskann (embedding floatvector_l2_ops) WITH (parallel_workers=8,enable_quantization=true);
+-- search with PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=true; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- search without PQ
+SET enable_seqscan TO off; SET diskann_query_with_pq=false; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- drop the DiskANN index
+DROP INDEX idx_diskann;
+
+-- Case 7: test insert, delete and vacuum
+SET client_min_messages=error; CREATE INDEX idx_diskann ON items USING diskann (embedding floatvector_l2_ops) WITH (parallel_workers=8);
+-- search by default
+SET enable_seqscan TO off; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- insert some data
+INSERT INTO items SELECT 10001, embedding FROM query WHERE id = 10;
+INSERT INTO items SELECT 10002, embedding FROM query WHERE id = 30;
+INSERT INTO items SELECT 10003, embedding FROM query WHERE id = 50;
+INSERT INTO items SELECT 10004, embedding FROM query WHERE id = 70;
+INSERT INTO items SELECT 10005, embedding FROM query WHERE id = 90;
+-- delete some data
+DELETE FROM items WHERE id > 4500 and id < 4900;
+-- vacuum full
+SET client_min_messages=error; VACUUM FULL items;
+-- vacuum
+SET client_min_messages=error; VACUUM items;
+-- search by default
+SET enable_seqscan TO off; SELECT * FROM items ORDER BY embedding <-> (SELECT embedding from query where id = 1) LIMIT 10;
+-- drop the DiskANN index
+DROP INDEX idx_diskann;
+
+-- drop tables
+DROP TABLE items, query;
