@@ -1,6 +1,6 @@
 #include "postgres.h"
 #include "fmgr.h"
-#include "access/qasp/qasp.h"
+#include "access/crux/crux.h"
 #include "utils/builtins.h"
 #include "utils/array.h"
 #include "catalog/pg_type.h"
@@ -17,15 +17,15 @@
 PG_MODULE_MAGIC;
 #endif
 
-PG_FUNCTION_INFO_V1(qasp_manual_repair);
-PG_FUNCTION_INFO_V1(qasp_repair_from_gt);
+PG_FUNCTION_INFO_V1(crux_manual_repair);
+PG_FUNCTION_INFO_V1(crux_repair_from_gt);
 
 extern "C" {
     #include "access/annvector/floatvector.h"
 }
 
 extern "C" {
-    Datum qasp_manual_repair(PG_FUNCTION_ARGS) {
+    Datum crux_manual_repair(PG_FUNCTION_ARGS) {
         text *relname_text = PG_GETARG_TEXT_P(0);
         FloatVector *vec = PG_GETARG_FLOATVECTOR_P(1);
         int32 repair_ef = PG_GETARG_INT32(2);
@@ -45,15 +45,15 @@ extern "C" {
         errno_t rc = memcpy_s(query_vec, sizeof(float) * dim, vec_data, sizeof(float) * dim);
         securec_check(rc, "\0", "\0");
     
-        Buffer meta_buf = ReadBuffer(index_rel, QASP_METAPAGE_BLKNO);
+        Buffer meta_buf = ReadBuffer(index_rel, CRUX_METAPAGE_BLKNO);
         LockBuffer(meta_buf, BUFFER_LOCK_SHARE);
-        QASPMetaPage *metaPage = QASPPageGetMeta(BufferGetPage(meta_buf));
+        CRUXMetaPage *metaPage = CRUXPageGetMeta(BufferGetPage(meta_buf));
     
-        if (metaPage->magicNumber != QASP_MAGIC_NUMBER) {
+        if (metaPage->magicNumber != CRUX_MAGIC_NUMBER) {
             UnlockReleaseBuffer(meta_buf);
             index_close(index_rel, ShareUpdateExclusiveLock);
             pfree(query_vec);
-            ereport(ERROR, (errmsg("Relation is not a valid QASP index")));
+            ereport(ERROR, (errmsg("Relation is not a valid CRUX index")));
         }
         
         if (metaPage->dimensions != (uint32)dim) {
@@ -84,7 +84,7 @@ extern "C" {
         PG_RETURN_BOOL(true);
     }
 
-    Datum qasp_repair_from_gt(PG_FUNCTION_ARGS) {
+    Datum crux_repair_from_gt(PG_FUNCTION_ARGS) {
         text *relname_text = PG_GETARG_TEXT_P(0);
         text *path_text = PG_GETARG_TEXT_P(1);
         int32 limit_k = PG_GETARG_INT32(2);
@@ -95,14 +95,14 @@ extern "C" {
         Oid index_oid = RangeVarGetRelid(relvar, NoLock, false);
         Relation index_rel = index_open(index_oid, ShareUpdateExclusiveLock);
         
-        Buffer meta_buf = ReadBuffer(index_rel, QASP_METAPAGE_BLKNO);
+        Buffer meta_buf = ReadBuffer(index_rel, CRUX_METAPAGE_BLKNO);
         LockBuffer(meta_buf, BUFFER_LOCK_SHARE);
-        QASPMetaPage *metaPage = QASPPageGetMeta(BufferGetPage(meta_buf));
+        CRUXMetaPage *metaPage = CRUXPageGetMeta(BufferGetPage(meta_buf));
         
-        if (metaPage->magicNumber != QASP_MAGIC_NUMBER) {
+        if (metaPage->magicNumber != CRUX_MAGIC_NUMBER) {
             UnlockReleaseBuffer(meta_buf);
             index_close(index_rel, ShareUpdateExclusiveLock);
-            ereport(ERROR, (errmsg("Relation is not a valid QASP index")));
+            ereport(ERROR, (errmsg("Relation is not a valid CRUX index")));
         }
 
         FILE *f = fopen(filename, "rb");

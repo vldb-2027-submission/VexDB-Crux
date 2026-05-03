@@ -31,7 +31,7 @@ set(CMAKE_MODULE_PATH
     ${CMAKE_CURRENT_SOURCE_DIR}/hnsw
     ${CMAKE_CURRENT_SOURCE_DIR}/bm25
     ${CMAKE_CURRENT_SOURCE_DIR}/rabitq
-    ${CMAKE_CURRENT_SOURCE_DIR}/qasp
+    ${CMAKE_CURRENT_SOURCE_DIR}/crux
 )
 
 if(NOT "${ENABLE_LITE_MODE}" STREQUAL "ON")
@@ -64,4 +64,4 @@ add_subdirectory(ustore)
 add_subdirectory(annvector)
 add_subdirectory(hnsw)
 add_subdirectory(rabitq)
-add_subdirectory(qasp)
+add_subdirectory(crux)

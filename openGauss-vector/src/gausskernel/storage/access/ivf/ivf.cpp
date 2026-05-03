@@ -5,7 +5,7 @@
 #include "access/amapi.h"
 #include "commands/vacuum.h"
 #include "access/annvector/ivf.h"
-#include "access/qasp/qasp.h"
+#include "access/crux/crux.h"
 #include "utils/guc.h"
 #include "utils/selfuncs.h"
 #include "utils/spccache.h"
@@ -207,7 +207,7 @@ Datum ivfflatbuild(PG_FUNCTION_ARGS)
 	Relation heap = (Relation)PG_GETARG_POINTER(0);
 	Relation index = (Relation)PG_GETARG_POINTER(1);
 	IndexInfo *indexinfo = (IndexInfo *)PG_GETARG_POINTER(2);
-	IndexBuildResult *result = qaspbuild_internal(heap, index, indexinfo);
+	IndexBuildResult *result = cruxbuild_internal(heap, index, indexinfo);
 	PG_RETURN_POINTER(result);
 }
 
@@ -307,7 +307,7 @@ ivfflatbeginscan(PG_FUNCTION_ARGS)
 	int nkeys = PG_GETARG_INT32(1);
 	int norderbys = PG_GETARG_INT32(2);
 	// IndexScanDesc scan = ivfbeginscan_internal(rel, nkeys, norderbys, false);
-	IndexScanDesc scan = qaspbeginscan_internal(rel, nkeys, norderbys);
+	IndexScanDesc scan = cruxbeginscan_internal(rel, nkeys, norderbys);
 	PG_RETURN_POINTER(scan);
 }
 
@@ -320,7 +320,7 @@ ivfflatrescan(PG_FUNCTION_ARGS)
 	int nkeys = PG_GETARG_INT32(2);
 	ScanKey orderbys = (ScanKey)PG_GETARG_POINTER(3);
 	int norderbys = PG_GETARG_INT32(4);
-	qasprescan_internal(scan, scankey, nkeys, orderbys, norderbys);
+	cruxrescan_internal(scan, scankey, nkeys, orderbys, norderbys);
 	PG_RETURN_VOID();
 }
 
@@ -333,7 +333,7 @@ ivfflatgettuple(PG_FUNCTION_ARGS)
 		ereport(ERROR, (errcode(ERRCODE_INVALID_PARAMETER_VALUE), errmsg("Invalid arguments for function ivfflatgettuple")));
 	
 	// bool result = ivfgettuple_internal(scan, scan->opaque);
-	bool result = qaspgettuple_internal(scan, Act_cluster_num);
+	bool result = cruxgettuple_internal(scan, Act_cluster_num);
 	PG_RETURN_BOOL(result);
 }
 
@@ -342,7 +342,7 @@ Datum
 ivfflatendscan(PG_FUNCTION_ARGS)
 {
 	IndexScanDesc scan = (IndexScanDesc)PG_GETARG_POINTER(0);
-	qaspendscan_internal(scan);
+	cruxendscan_internal(scan);
 	scan->opaque = NULL;
 	PG_RETURN_VOID();
 }

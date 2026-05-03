@@ -14,7 +14,7 @@
 #include "c.h"
 #include "access/diskann/diskann.h"
 #include "access/bm25/bm25_struct.h"
-#include "access/qasp/qasp_types.h"
+#include "access/crux/crux_types.h"
 #include "access/roar/roar_types.h"
 
 namespace ann_helper {

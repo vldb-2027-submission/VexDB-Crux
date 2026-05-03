@@ -1,13 +1,13 @@
-#include "access/qasp/qasp.h"
+#include "access/crux/crux.h"
 #include "pgstat.h"
 
 using namespace ann_helper;
 using namespace disk_container;
 
-static void ProfileQASPEdges(Relation index, QASPMetaPage *metaPage) {
+static void ProfileCRUXEdges(Relation index, CRUXMetaPage *metaPage) {
     uint32 num_data = metaPage->num_data;
 
-    elog(NOTICE, "========== 验证全新的 QASP 极简图结构 ==========");
+    elog(NOTICE, "========== 验证全新的 CRUX 极简图结构 ==========");
     DiskVector<BaseEdges> base_disk(index, metaPage->base_edges_meta_blkno, false);
     DiskVector<OverflowBucket> overflow_disk(index, metaPage->overflow_buckets_meta_blkno, false);
     
@@ -41,7 +41,7 @@ static void ProfileQASPEdges(Relation index, QASPMetaPage *metaPage) {
 }
 
 
-struct QASPScanOpaqueData {
+struct CRUXScanOpaqueData {
     Relation    index;
     ItemPointer tids;
     uint32      searchListSize;
@@ -50,11 +50,11 @@ struct QASPScanOpaqueData {
     int         lastIndex;
     bool        first;
 };
-typedef QASPScanOpaqueData *QASPScanOpaque;
+typedef CRUXScanOpaqueData *CRUXScanOpaque;
 
-void *create_qasp_scanopaque(Relation index)
+void *create_crux_scanopaque(Relation index)
 {
-    QASPScanOpaque so = (QASPScanOpaque)palloc(sizeof(QASPScanOpaqueData));
+    CRUXScanOpaque so = (CRUXScanOpaque)palloc(sizeof(CRUXScanOpaqueData));
     so->index = index;
     so->first = true;
 
@@ -69,17 +69,17 @@ void *create_qasp_scanopaque(Relation index)
 }
 
 
-IndexScanDesc qaspbeginscan_internal(Relation index, int nkeys, int norderbys)
+IndexScanDesc cruxbeginscan_internal(Relation index, int nkeys, int norderbys)
 {
     IndexScanDesc scan = RelationGetIndexScan(index, nkeys, norderbys);
-    scan->opaque = create_qasp_scanopaque(index);
+    scan->opaque = create_crux_scanopaque(index);
     return scan;
 }
 
 
-void qasprescan_internal(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys)
+void cruxrescan_internal(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys)
 {
-    QASPScanOpaque so = (QASPScanOpaque)scan->opaque;
+    CRUXScanOpaque so = (CRUXScanOpaque)scan->opaque;
     so->first = true;
     pfree_ext(so->tids);
 
@@ -93,17 +93,17 @@ void qasprescan_internal(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey or
 }
 
 
-static void free_qasp_scanopaque(void *in_so)
+static void free_crux_scanopaque(void *in_so)
 {
-    QASPScanOpaque so = (QASPScanOpaque)in_so;
+    CRUXScanOpaque so = (CRUXScanOpaque)in_so;
     pfree_ext(so->tids);
     pfree(so);
 }
 
-void qaspendscan_internal(IndexScanDesc scan)
+void cruxendscan_internal(IndexScanDesc scan)
 {
     if (scan->opaque) {
-        free_qasp_scanopaque(scan->opaque);
+        free_crux_scanopaque(scan->opaque);
         scan->opaque = NULL;
     }
 }
@@ -114,7 +114,7 @@ typedef struct CentroidDis {
 } CentroidsDist;
 
 void SemanticGreedySearch(Relation index, float *query, uint32 ef, CandidateQueue &cq,
-    Vector<uint32> &closest_centroids, UnorderedSet<uint32> &visited, QASPMetaPage *metaPage) 
+    Vector<uint32> &closest_centroids, UnorderedSet<uint32> &visited, CRUXMetaPage *metaPage) 
 {
     uint32 semantic_activated = closest_centroids.size();
     auto dist_func = get_general_distance_func(Metric::INNER_PRODUCT, metaPage->dimensions);
@@ -180,7 +180,7 @@ void SemanticGreedySearch(Relation index, float *query, uint32 ef, CandidateQueu
 }
 
 Vector<QueryNeighbor> SingleQuerySearch(Relation index, float *query, uint32 ef,
-    uint32 num_semantic_activated, Buffer meta_buf, QASPMetaPage *metaPage)
+    uint32 num_semantic_activated, Buffer meta_buf, CRUXMetaPage *metaPage)
 {
     // 1. compute the semantics to be activated.
     const uint32 num_semantic_cluster = metaPage->num_semantic_cluster;
@@ -242,7 +242,7 @@ Vector<QueryNeighbor> SingleQuerySearch(Relation index, float *query, uint32 ef,
 }
 
 void SemanticGreedySearch_repair(Relation index, float *query, uint32 ef, CandidateQueue &cq,
-    Vector<uint32> &closest_centroids, UnorderedSet<uint32> &visited, QASPMetaPage *metaPage,
+    Vector<uint32> &closest_centroids, UnorderedSet<uint32> &visited, CRUXMetaPage *metaPage,
     SearchStats *stats) 
 {
     uint32 semantic_activated = closest_centroids.size();
@@ -303,7 +303,7 @@ void SemanticGreedySearch_repair(Relation index, float *query, uint32 ef, Candid
 }
 
 Vector<QueryNeighbor> SingleQuerySearch_repair(Relation index, float *query, uint32 ef, 
-    uint32 num_semantic_activated, Buffer meta_buf, QASPMetaPage *metaPage, 
+    uint32 num_semantic_activated, Buffer meta_buf, CRUXMetaPage *metaPage, 
     SearchStats *stats)
 {
     const uint32 num_semantic_cluster = metaPage->num_semantic_cluster;
@@ -367,9 +367,9 @@ Vector<QueryNeighbor> SingleQuerySearch_repair(Relation index, float *query, uin
     return candidates;
 }
 
-bool qaspgettuple_internal(IndexScanDesc scan, uint32 num_semantic_activated)
+bool cruxgettuple_internal(IndexScanDesc scan, uint32 num_semantic_activated)
 {
-    QASPScanOpaque so = (QASPScanOpaque)scan->opaque;
+    CRUXScanOpaque so = (CRUXScanOpaque)scan->opaque;
     if (so->first) {
         uint32 ef = so->searchListSize;
         /* Count index scan for stats */
@@ -405,8 +405,8 @@ bool qaspgettuple_internal(IndexScanDesc scan, uint32 num_semantic_activated)
             alloced = true;
         }
 
-        Buffer buf = AnnLoadBuffer(so->index, QASP_METAPAGE_BLKNO);
-        QASPMetaPage *metaPage = QASPPageGetMeta(BufferGetPage(buf));
+        Buffer buf = AnnLoadBuffer(so->index, CRUX_METAPAGE_BLKNO);
+        CRUXMetaPage *metaPage = CRUXPageGetMeta(BufferGetPage(buf));
         Vector<QueryNeighbor> candidates =
             SingleQuerySearch(so->index, query, ef, num_semantic_activated, buf, metaPage);
         

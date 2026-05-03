@@ -1,10 +1,10 @@
-#ifndef QASP_H
-#define QASP_H
+#ifndef CRUX_H
+#define CRUX_H
 
 #include "postgres.h"
 #include "access/genam.h"
 #include <vtl/disk_container/diskvector.hpp>
-#include "access/qasp/qasp_types.h"
+#include "access/crux/crux_types.h"
 #include <vtl/vector>
 #include <unordered_map>
 
@@ -16,15 +16,15 @@
 #include "access/diskann/diskann_internal.h"
 #include "access/annvector/store/vector_smgr.h"
 
-#define QASP_MAGIC_NUMBER                0x51415350
-#define QASP_VERSION                     1
+#define CRUX_MAGIC_NUMBER                0x51415350
+#define CRUX_VERSION                     1
 #define NUM_SEMANTIC_CLUSTER             20
-#define QASP_PAGE_ID                     0xFFA0u
-#define QASP_META_ID                     0xFFA1u
-#define QASP_METAPAGE_BLKNO              0
+#define CRUX_PAGE_ID                     0xFFA0u
+#define CRUX_META_ID                     0xFFA1u
+#define CRUX_METAPAGE_BLKNO              0
 
-#define QASPPageGetOpaque(page)  ((QASPPageOpaque *) PageGetSpecialPointer(page))
-#define QASPPageGetMeta(page)    ((QASPMetaPage *) PageGetContents(page))
+#define CRUXPageGetOpaque(page)  ((CRUXPageOpaque *) PageGetSpecialPointer(page))
+#define CRUXPageGetMeta(page)    ((CRUXMetaPage *) PageGetContents(page))
 
 // Note: The training size and data size of laion-10M is 10004480, not 10000000
 
@@ -39,20 +39,20 @@ constexpr char *filename = "/home/fanlu/workspace/simple_exp/data_repair_formal/
 #define Default_efConstruction 500
 #define Default_NumberGroundTruth 100
 
-extern IndexBuildResult *qaspbuild_internal(Relation heap, Relation index, IndexInfo *indexInfo);
-extern bool qaspinsert_internal(Relation index, Datum *values, const bool *isnull,
+extern IndexBuildResult *cruxbuild_internal(Relation heap, Relation index, IndexInfo *indexInfo);
+extern bool cruxinsert_internal(Relation index, Datum *values, const bool *isnull,
     ItemPointer heap_tid, BlockNumber metablkno, size_t floatvectoriIndex);
-extern IndexScanDesc qaspbeginscan_internal(Relation index, int nkeys, int norderbys);
-extern void qasprescan_internal(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys);
-extern void qaspendscan_internal(IndexScanDesc scan);
-extern bool qaspgettuple_internal(IndexScanDesc scan, uint32 num_semantic_activated);
+extern IndexScanDesc cruxbeginscan_internal(Relation index, int nkeys, int norderbys);
+extern void cruxrescan_internal(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys);
+extern void cruxendscan_internal(IndexScanDesc scan);
+extern bool cruxgettuple_internal(IndexScanDesc scan, uint32 num_semantic_activated);
 
-typedef struct QASPPageOpaque {
+typedef struct CRUXPageOpaque {
     uint16      unused;
     uint16      page_id;
-} QASPPageOpaque;
+} CRUXPageOpaque;
 
-typedef struct QASPMetaPage {
+typedef struct CRUXMetaPage {
 	uint32          magicNumber;
     Metric          metric;
     uint32          dimensions;
@@ -71,7 +71,7 @@ typedef struct QASPMetaPage {
 	BlockNumber query_vec_meta_blkno;          
     BlockNumber upper_index_edges_meta_blkno;
 
-} QASPMetaPage;
+} CRUXMetaPage;
 
 struct SearchStats {
     uint32 total_hops;          // 总步数 (Plateau 分母)
@@ -80,8 +80,8 @@ struct SearchStats {
     float  best_distance;       // 当前搜索到的最优距离 (用于判断更新)
 };
 
-/* QASP index options */
-typedef struct QASPOptions
+/* CRUX index options */
+typedef struct CRUXOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	int			m;				
@@ -89,9 +89,9 @@ typedef struct QASPOptions
 	int 		parallel_workers;
 	int 		num_semantic_cluster;
 	int 		num_ground_truth;
-}			QASPOptions;
+}			CRUXOptions;
 
-struct QASPBuildState : public BaseObject
+struct CRUXBuildState : public BaseObject
 {
 	/* Info */
 	Relation	heap;
@@ -145,9 +145,9 @@ struct QASPBuildState : public BaseObject
 	ann_helper::distance_func func_ptr;
 
 	/* Memory */
-	MemoryContext qaspCtx;
-	ThreadId      qaspCtxcreator;
-	bool          qaspCtxfreed;
+	MemoryContext cruxCtx;
+	ThreadId      cruxCtxcreator;
+	bool          cruxCtxfreed;
 	char	indexName[NAMEDATALEN + 1];
 	char	partIndexName[NAMEDATALEN + 1];
 
@@ -162,25 +162,25 @@ struct QASPBuildState : public BaseObject
 		mem_query_graph.clear();
 		std::vector<std::vector<uint32_t>>().swap(mem_query_graph);
 
-		if (!qaspCtxfreed && t_thrd.proc->sessMemorySessionid == qaspCtxcreator) {
-			MemoryContextDelete(qaspCtx);
-			qaspCtxfreed = true;
+		if (!cruxCtxfreed && t_thrd.proc->sessMemorySessionid == cruxCtxcreator) {
+			MemoryContextDelete(cruxCtx);
+			cruxCtxfreed = true;
 		}
 	}
 };
 
 struct BuildCallbackData {
-    QASPBuildState &buildstate;
+    CRUXBuildState &buildstate;
     Relation heap;
 	uint32 *heap_mark;
 };
 
-void buildVamanaOnDisk(QASPBuildState &buildstate);
-Vector<QueryNeighbor> SingleQuerySearch(Relation index, float *query, uint32 ef, uint32 num_semantic_activated, Buffer meta_buf, QASPMetaPage *metaPage);
-Vector<size_t> SemanticPrune(QASPBuildState &buildstate, CandidateQueue &cq, uint32 tgt_id, bool disk, Relation index = InvalidRelation);
-int QASPGetM(Relation index);
-void approxSingleQueryRepair(float* ood_query, QASPMetaPage *metaPage, Buffer meta_buf, Relation index, uint32 num_ground_truth, uint32 repair_ef);
-Vector<QueryNeighbor> SingleQuerySearch_repair(Relation index, float *query, uint32 ef, uint32 num_semantic_activated, Buffer meta_buf, QASPMetaPage *metaPage, SearchStats *stats);
-void repairSingleWithGT(Relation index, QASPMetaPage *metaPage, uint32 pivot_id, int32* neighbors, uint32 num_neighbors);
+void buildVamanaOnDisk(CRUXBuildState &buildstate);
+Vector<QueryNeighbor> SingleQuerySearch(Relation index, float *query, uint32 ef, uint32 num_semantic_activated, Buffer meta_buf, CRUXMetaPage *metaPage);
+Vector<size_t> SemanticPrune(CRUXBuildState &buildstate, CandidateQueue &cq, uint32 tgt_id, bool disk, Relation index = InvalidRelation);
+int CRUXGetM(Relation index);
+void approxSingleQueryRepair(float* ood_query, CRUXMetaPage *metaPage, Buffer meta_buf, Relation index, uint32 num_ground_truth, uint32 repair_ef);
+Vector<QueryNeighbor> SingleQuerySearch_repair(Relation index, float *query, uint32 ef, uint32 num_semantic_activated, Buffer meta_buf, CRUXMetaPage *metaPage, SearchStats *stats);
+void repairSingleWithGT(Relation index, CRUXMetaPage *metaPage, uint32 pivot_id, int32* neighbors, uint32 num_neighbors);
 
 #endif /* EXP_H */

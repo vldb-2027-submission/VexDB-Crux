@@ -1,5 +1,5 @@
 
-subdir = src/gausskernel/storage/access/qasp
+subdir = src/gausskernel/storage/access/crux
 top_builddir = ../../../../..
 include $(top_builddir)/src/Makefile.global
 
@@ -10,8 +10,7 @@ ifneq "$(MAKECMDGOALS)" "clean"
      endif
   endif
 endif
-OBJS = qasp.o qaspscan.o qasprepair.o
-# OBJS = qasp.o qaspscan.o qasprepair.o
+OBJS = crux.o cruxscan.o cruxrepair.o
 
 override CPPFLAGS += -Wno-volatile -Wno-register -fno-exceptions -std=c++17
 include $(top_srcdir)/src/gausskernel/common.mk

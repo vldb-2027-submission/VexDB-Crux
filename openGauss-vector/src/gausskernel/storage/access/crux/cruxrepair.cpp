@@ -1,5 +1,5 @@
 #include "postgres.h"
-#include "access/qasp/qasp.h"
+#include "access/crux/crux.h"
 #include "access/hnsw/hnsw.h"
 #include <boost/optional/optional.hpp>
 #include "utils/elog.h"
@@ -10,7 +10,7 @@ using namespace disk_container;
 
 #define MAX_PHYSICAL_EDGES 40
 
-uint32 GetClosestSemanticCluster(Relation index, float* query, QASPMetaPage *metaPage) {
+uint32 GetClosestSemanticCluster(Relation index, float* query, CRUXMetaPage *metaPage) {
     const uint32 num_semantic_cluster = metaPage->num_semantic_cluster;
     const uint32 dim = metaPage->dimensions;
     float *centroid_vecs = (float *)palloc0(sizeof(float) * dim * num_semantic_cluster);
@@ -189,7 +189,7 @@ void SafeAppendEdges(
     }
 }
 
-void approxSingleQueryRepair(float* ood_query, QASPMetaPage *metaPage, Buffer meta_buf, Relation index, uint32 num_ground_truth, uint32 repair_ef) {
+void approxSingleQueryRepair(float* ood_query, CRUXMetaPage *metaPage, Buffer meta_buf, Relation index, uint32 num_ground_truth, uint32 repair_ef) {
     uint32 semantic_id = GetClosestSemanticCluster(index, ood_query, metaPage);
     
     SearchStats stats;
@@ -227,7 +227,7 @@ void approxSingleQueryRepair(float* ood_query, QASPMetaPage *metaPage, Buffer me
     edge_num_reminders.destroy();
 }
 
-void repairSingleWithGT(Relation index, QASPMetaPage *metaPage, uint32 pivot_id, int32* logical_neighbors, uint32 num_neighbors) {
+void repairSingleWithGT(Relation index, CRUXMetaPage *metaPage, uint32 pivot_id, int32* logical_neighbors, uint32 num_neighbors) {
     if (num_neighbors == 0 || logical_neighbors == NULL) return;
 
     DiskVector<uint32_t> logical_to_physical(index, metaPage->logical_to_physical_meta_blkno, false);

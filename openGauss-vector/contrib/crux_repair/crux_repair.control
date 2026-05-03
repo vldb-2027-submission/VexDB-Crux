@@ -1,0 +1,5 @@
+# crux_repair extension
+comment = 'CRUX repair functionality for vector index'
+default_version = '1.0'
+module_pathname = '$libdir/crux_repair'
+relocatable = true

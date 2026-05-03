@@ -1,5 +1,0 @@
-# qasp_repair extension
-comment = 'QASP repair functionality for vector index'
-default_version = '1.0'
-module_pathname = '$libdir/qasp_repair'
-relocatable = true

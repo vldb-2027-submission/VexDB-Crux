@@ -1,5 +1,5 @@
-#ifndef QASP_TYPES_H
-#define QASP_TYPES_H
+#ifndef CRUX_TYPES_H
+#define CRUX_TYPES_H
 
 #include "postgres.h"
 #include "access/genam.h"

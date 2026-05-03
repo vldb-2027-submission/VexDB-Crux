@@ -1,4 +1,4 @@
-#include "access/qasp/qasp.h"
+#include "access/crux/crux.h"
 #include "access/hnsw/hnsw.h"
 #include <boost/optional/optional.hpp>
 #include <queue>
@@ -6,65 +6,65 @@
 using namespace ann_helper;
 using namespace disk_container;
 
-bool qaspinsert_internal(Relation index, Datum *values, const bool *isnull,
+bool cruxinsert_internal(Relation index, Datum *values, const bool *isnull,
     ItemPointer heap_tid, BlockNumber metablkno, size_t floatvectoriIndex);
 
-int QASPGetM(Relation index)
+int CRUXGetM(Relation index)
 {
-    QASPOptions *opts = (QASPOptions *) index->rd_options;
+    CRUXOptions *opts = (CRUXOptions *) index->rd_options;
     if (opts) {
         return opts->m;
     }
     return Default_M;
 }
 
-int QASPGetEfConstruction(Relation index)
+int CRUXGetEfConstruction(Relation index)
 {
-    QASPOptions *opts = (QASPOptions *) index->rd_options;
+    CRUXOptions *opts = (CRUXOptions *) index->rd_options;
     if (opts) {
         return opts->efConstruction;
     }
     return Default_efConstruction;
 }
 
-int QASPGetBuildParallel(Relation index)
+int CRUXGetBuildParallel(Relation index)
 {
     int defa = 10;
-    QASPOptions * opts = (QASPOptions *) index->rd_options;
+    CRUXOptions * opts = (CRUXOptions *) index->rd_options;
     if (opts) {
         return opts->parallel_workers;
     }
     return defa;
 }
 
-int QASPGetNumberCluster(Relation index)
+int CRUXGetNumberCluster(Relation index)
 {
-    QASPOptions *opts = (QASPOptions *) index->rd_options;
+    CRUXOptions *opts = (CRUXOptions *) index->rd_options;
     if (opts) {
         return opts->num_semantic_cluster;
     }
     return Default_Cluster_num;
 }
 
-int QASPGetNumberGroundTruth(Relation index)
+int CRUXGetNumberGroundTruth(Relation index)
 {
-    QASPOptions *opts = (QASPOptions *) index->rd_options;
+    CRUXOptions *opts = (CRUXOptions *) index->rd_options;
     if (opts) {
         return opts->num_ground_truth;
     }
     return Default_NumberGroundTruth;
 }
 
-void free_qasp_ctx(QASPBuildState *buildstate)
+void free_crux_ctx(CRUXBuildState *buildstate)
 {
-    if (t_thrd.proc->sessMemorySessionid == buildstate->qaspCtxcreator &&
-        !buildstate->qaspCtxfreed) {
-        MemoryContextDelete(buildstate->qaspCtx);
-        buildstate->qaspCtxfreed = true;
+    if (t_thrd.proc->sessMemorySessionid == buildstate->cruxCtxcreator &&
+        !buildstate->cruxCtxfreed) {
+        MemoryContextDelete(buildstate->cruxCtx);
+        buildstate->cruxCtxfreed = true;
     }
 }
 
-static void InitBuildState(QASPBuildState &buildstate, Relation heap, Relation index,
+static void InitBuildState(CRUXBuildState &buildstate, Relation heap, Relation index,
     IndexInfo *indexInfo, ForkNumber forkNum, int m, int efConstruction, int parallel_workers,
     int num_semantic_cluster, int num_ground_truth, int maintenance_work_mem)
 {
@@ -84,7 +84,7 @@ static void InitBuildState(QASPBuildState &buildstate, Relation heap, Relation i
 
     /* Disallow varbit since require fixed dimensions */
     if (TupleDescAttr(index->rd_att, 0)->atttypid == VARBITOID) {
-        elog(ERROR, "type not supported for qasp index");
+        elog(ERROR, "type not supported for crux index");
     }
 
     /* Require column to have dimensions to be indexed */
@@ -105,13 +105,13 @@ static void InitBuildState(QASPBuildState &buildstate, Relation heap, Relation i
     buildstate.collation = INT4OID;
     buildstate.func_ptr = get_general_distance_func(Metric::INNER_PRODUCT, buildstate.dimensions);
 
-    buildstate.qaspCtx = AllocSetContextCreate(g_instance.diskann_cxt.vec_indexer_ctx,
-        "QASP build graph context", ALLOCSET_DEFAULT_SIZES, SHARED_CONTEXT);
+    buildstate.cruxCtx = AllocSetContextCreate(g_instance.diskann_cxt.vec_indexer_ctx,
+        "CRUX build graph context", ALLOCSET_DEFAULT_SIZES, SHARED_CONTEXT);
 
-    buildstate.qaspCtxcreator = t_thrd.proc->sessMemorySessionid;
-    buildstate.qaspCtxfreed = false; 
+    buildstate.cruxCtxcreator = t_thrd.proc->sessMemorySessionid;
+    buildstate.cruxCtxfreed = false; 
 
-    auto old_ctx = MemoryContextSwitchTo(buildstate.qaspCtx);
+    auto old_ctx = MemoryContextSwitchTo(buildstate.cruxCtx);
     buildstate.centers = FloatVectorArrayInit(buildstate.ncluster, buildstate.dimensions);
     buildstate.samples = FloatVectorArrayInit(QUERYSIZE * 2, buildstate.dimensions);
 
@@ -128,7 +128,7 @@ static uint32 count = 0;
 static void BuildCallback(Relation index, HeapTuple hup, Datum *values, const bool *isnull,
     bool tupleIsAlive, void *state) {
     BuildCallbackData *data = (BuildCallbackData *)state;
-    QASPBuildState &buildstate = data->buildstate;
+    CRUXBuildState &buildstate = data->buildstate;
     ++(*data->heap_mark);
     if (*(data->heap_mark) < QUERYSIZE) {
         
@@ -223,8 +223,8 @@ static void BuildCallback(Relation index, HeapTuple hup, Datum *values, const bo
         buildstate.mem_clusters.push_back(BitSet<20ul>());
         buildstate.mem_heaptids.push_back(hup->t_self);
         
-        // 在 QASP 专用的内存上下文中，为当前节点一次性分配 20 个簇的定长边表数组，并清零
-        Edges *node_edges = (Edges *)MemoryContextAllocZero(buildstate.qaspCtx, sizeof(Edges) * buildstate.ncluster);
+        // 在 CRUX 专用的内存上下文中，为当前节点一次性分配 20 个簇的定长边表数组，并清零
+        Edges *node_edges = (Edges *)MemoryContextAllocZero(buildstate.cruxCtx, sizeof(Edges) * buildstate.ncluster);
         buildstate.mem_graph.push_back(node_edges);
 
 
@@ -235,7 +235,7 @@ static void BuildCallback(Relation index, HeapTuple hup, Datum *values, const bo
 // ========================================================================
 // 【新增】Step 3: 提取 Cross-Query KNN Edges (长程边跨模态连接)
 // ========================================================================
-static void CrossQueryKNNEdges(QASPBuildState &buildstate, int32 *res) {
+static void CrossQueryKNNEdges(CRUXBuildState &buildstate, int32 *res) {
     Timer timer(QUERYSIZE, 10000);
     timer.report("  Enter Cross-query KNN Edges construction...");
 
@@ -355,7 +355,7 @@ static void CrossQueryKNNEdges(QASPBuildState &buildstate, int32 *res) {
 // ========================================================================
 // 【新增】Step 2: 构建训练集的 Query Graph (内存 Vamana 并写入 DiskVector)
 // ========================================================================
-static void buildQueryGraph(QASPBuildState &buildstate) {
+static void buildQueryGraph(CRUXBuildState &buildstate) {
     Timer timer(QUERYSIZE, 10000);
     timer.report("  Enter Build Query Graph...");
 
@@ -462,7 +462,7 @@ static void buildQueryGraph(QASPBuildState &buildstate) {
     timer.destroy();
 }
 
-Vector<size_t> SemanticPrune(QASPBuildState &buildstate, CandidateQueue &cq, uint32 tgt_id, bool disk, Relation index) {
+Vector<size_t> SemanticPrune(CRUXBuildState &buildstate, CandidateQueue &cq, uint32 tgt_id, bool disk, Relation index) {
     if (!RelationIsValid(index) && disk) {
         index = buildstate.index;
     }
@@ -553,7 +553,7 @@ Vector<size_t> SemanticPrune(QASPBuildState &buildstate, CandidateQueue &cq, uin
     return result;
 }
 
-static void SingleQueryProjection(QASPBuildState &buildstate, CandidateQueue &cq, uint32 query_id, uint32 semantic_id, QueryNeighbor& pivot) {
+static void SingleQueryProjection(CRUXBuildState &buildstate, CandidateQueue &cq, uint32 query_id, uint32 semantic_id, QueryNeighbor& pivot) {
     Timer timer;
     CandidateQueue candidate_projection(buildstate.num_ground_truth);
     VecBuffer buf = vec_read_buffer(buildstate.index, pivot.id, buildstate.dimensions * sizeof(float));
@@ -646,7 +646,7 @@ static void SingleQueryProjection(QASPBuildState &buildstate, CandidateQueue &cq
     pruned_list.destroy();
 }
 
-static int32 *get_nn_answer(QASPBuildState &buildstate)
+static int32 *get_nn_answer(CRUXBuildState &buildstate)
 {
     FILE *f = fopen(filename, "rb");
     if (f == NULL) {
@@ -667,7 +667,7 @@ static int32 *get_nn_answer(QASPBuildState &buildstate)
     Assert(buildstate.num_ground_truth <= nans);
     int *data = (int *)((uint32 *)fmap + 2);
     size_t allocSize = (size_t)sizeof(int32) * GTSIZE * buildstate.num_ground_truth;
-    int32 *res = (int32 *)palloc0_huge(buildstate.qaspCtx, allocSize);
+    int32 *res = (int32 *)palloc0_huge(buildstate.cruxCtx, allocSize);
 
     for (uint32 i = 0; i < GTSIZE; i++) {
         errno_t rc = memcpy_s(&res[i * buildstate.num_ground_truth], 
@@ -682,7 +682,7 @@ static int32 *get_nn_answer(QASPBuildState &buildstate)
     return res;
 }
 
-static void Initialization(QASPBuildState &buildstate) {
+static void Initialization(CRUXBuildState &buildstate) {
     Timer timer(QUERYSIZE, 10'000);
     timer.report("  enter Initialization.");
     int32 *res = get_nn_answer(buildstate);
@@ -742,7 +742,7 @@ static void Initialization(QASPBuildState &buildstate) {
 }
 
 // greedy search on the projection graph.
-static void SearchProjectionGraphInternal(QASPBuildState &buildstate, Vector<slock_t> &locks,
+static void SearchProjectionGraphInternal(CRUXBuildState &buildstate, Vector<slock_t> &locks,
     const Vector<Vector<size_t>> &Projection_all_semantic, Relation index, CandidateQueue &cq,
     const float *query_vec, uint32 query_id) { // 【修改点：去掉了 batchIndex 和 thread_heats】
     
@@ -781,7 +781,7 @@ static void SearchProjectionGraphInternal(QASPBuildState &buildstate, Vector<slo
     visited.destroy();
 }
 
-static void CE_partition(QASPBuildState &buildstate, Vector<size_t> &pruned_list, uint32 query_id) {
+static void CE_partition(CRUXBuildState &buildstate, Vector<size_t> &pruned_list, uint32 query_id) {
     for (uint32 i = 0; i < pruned_list.size(); i++) {    
         uint32 target_id = (uint32)pruned_list[i];
         BitSet<20ul> &pruned_cluster = buildstate.mem_clusters[target_id];
@@ -832,7 +832,7 @@ static void CE_partition(QASPBuildState &buildstate, Vector<size_t> &pruned_list
 }
 
 // search + Robust Prune.
-static Vector<size_t> search_neighbors(QASPBuildState &buildstate, const float *v, Relation index,
+static Vector<size_t> search_neighbors(CRUXBuildState &buildstate, const float *v, Relation index,
     const Vector<Vector<size_t>> &Projection_all_semantic, Vector<slock_t> &locks, uint32 i) { // 【修改点：去掉额外参数】
     
     CandidateQueue cq(buildstate.efConstruction);
@@ -852,7 +852,7 @@ static Vector<size_t> search_neighbors(QASPBuildState &buildstate, const float *
 }
 
 // add reverse for projection_all_semantic.
-static void set_up_proj_semantic(QASPBuildState &buildstate, const float *v, Vector<slock_t> &locks,
+static void set_up_proj_semantic(CRUXBuildState &buildstate, const float *v, Vector<slock_t> &locks,
     Vector<Vector<size_t>> &Projection_all_semantic, Relation index, Vector<size_t> &pruned_list,
     uint32 i) {
     SpinLockAcquire(&locks[i]);
@@ -887,7 +887,7 @@ static void set_up_proj_semantic(QASPBuildState &buildstate, const float *v, Vec
     }
 }
 
-static void InterClusterEnhancementHelper(QASPBuildState &buildstate, Vector<slock_t> &locks,
+static void InterClusterEnhancementHelper(CRUXBuildState &buildstate, Vector<slock_t> &locks,
     Vector<Vector<size_t>> &Projection_all_semantic, Relation index, uint32 i) { // 【修改点：去掉额外参数】
     
     VecBuffer buf_v = vec_read_buffer(index, i, buildstate.dimensions * sizeof(float));
@@ -900,7 +900,7 @@ static void InterClusterEnhancementHelper(QASPBuildState &buildstate, Vector<slo
     pruned_list.destroy();
 }
 
-static void InterClusterEnhancement(QASPBuildState &buildstate) {
+static void InterClusterEnhancement(CRUXBuildState &buildstate) {
     Vector<Vector<size_t>> Projection_all_semantic;
     Vector<Vector<size_t>> Projections_only;
     Projection_all_semantic.resize(buildstate.num_data);
@@ -936,7 +936,7 @@ static void InterClusterEnhancement(QASPBuildState &buildstate) {
         MemoryContext old_ctx = CurrentMemoryContext;
         if (IsBgWorkerProcess()) {
             index = index_open(index->rd_id, NoLock);
-            old_ctx = MemoryContextSwitchTo(buildstate.qaspCtx);
+            old_ctx = MemoryContextSwitchTo(buildstate.cruxCtx);
         }
         for (int i = start; i < end; i++) {
             if (uint32(i) == buildstate.entry_point) {
@@ -992,7 +992,7 @@ static void InterClusterEnhancement(QASPBuildState &buildstate) {
 }
 
 
-static void compute_entry_point(QASPBuildState &buildstate) {
+static void compute_entry_point(CRUXBuildState &buildstate) {
     Timer timer;
     timer.report("  Calculate entry point start");
     uint32 dim = buildstate.dimensions;
@@ -1049,21 +1049,21 @@ static void compute_entry_point(QASPBuildState &buildstate) {
     buildstate.entry_point = min_idx;
 }
 
-void QASPInitMeta(Buffer buf, Page page) {
-    PageInit(page, BufferGetPageSize(buf), sizeof(QASPPageOpaque));
-    QASPPageGetOpaque(page)->page_id = QASP_META_ID;
+void CRUXInitMeta(Buffer buf, Page page) {
+    PageInit(page, BufferGetPageSize(buf), sizeof(CRUXPageOpaque));
+    CRUXPageGetOpaque(page)->page_id = CRUX_META_ID;
 }
 
-void CreateMetaPage(QASPBuildState &buildstate) {
+void CreateMetaPage(CRUXBuildState &buildstate) {
     Buffer buf = AnnNewBuffer(buildstate.index, MAIN_FORKNUM);
     Page page = BufferGetPage(buf);
-    QASPInitMeta(buf, page);
-    QASPMetaPage *metaPage = QASPPageGetMeta(page);
+    CRUXInitMeta(buf, page);
+    CRUXMetaPage *metaPage = CRUXPageGetMeta(page);
 
-    metaPage->magicNumber = QASP_MAGIC_NUMBER;
+    metaPage->magicNumber = CRUX_MAGIC_NUMBER;
     metaPage->metric = buildstate.metric;
     metaPage->dimensions = buildstate.dimensions;
-    metaPage->version = QASP_VERSION;
+    metaPage->version = CRUX_VERSION;
     metaPage->num_semantic_cluster = buildstate.ncluster;
     metaPage->num_data = buildstate.num_data;
 
@@ -1095,13 +1095,13 @@ void CreateMetaPage(QASPBuildState &buildstate) {
     buildstate.upper_index_edges_meta_blkno = DiskVector<QuerySubIndexNeighbors>::get_disk_vector(buildstate.index, false);
     metaPage->upper_index_edges_meta_blkno = buildstate.upper_index_edges_meta_blkno;
 
-    ((PageHeader) page)->pd_lower = ((char *) metaPage + sizeof(QASPMetaPage)) - (char *) page;
+    ((PageHeader) page)->pd_lower = ((char *) metaPage + sizeof(CRUXMetaPage)) - (char *) page;
     AnnCommitBuffer(buf);
 }
 
-void UpdateMetaPage(QASPBuildState &buildstate){
-    Buffer buf = AnnLoadBufferExtended(buildstate.index, buildstate.forkNum, QASP_METAPAGE_BLKNO);
-    QASPMetaPage *metaPage = QASPPageGetMeta(BufferGetPage(buf));
+void UpdateMetaPage(CRUXBuildState &buildstate){
+    Buffer buf = AnnLoadBufferExtended(buildstate.index, buildstate.forkNum, CRUX_METAPAGE_BLKNO);
+    CRUXMetaPage *metaPage = CRUXPageGetMeta(BufferGetPage(buf));
 
     metaPage->entry_point = buildstate.entry_point;
     metaPage->num_data = buildstate.num_data;
@@ -1112,7 +1112,7 @@ void UpdateMetaPage(QASPBuildState &buildstate){
 }
 
 // 【Step 1 恢复：基于 A2 极速内存图的防遗忘游标快照重写】
-void update_edges_num(QASPBuildState &buildstate, bool Initialization_done) {
+void update_edges_num(CRUXBuildState &buildstate, bool Initialization_done) {
     DiskVector<edgeNumReminder> edgeNumReminders(buildstate.index, buildstate.edgeNumReminder_meta_blkno, false);
     for (uint32 i = 0; i < buildstate.num_data; i++) {
         edgeNumReminder reminder;
@@ -1161,7 +1161,7 @@ static void compute_start_idx(uint16_t *start_idx, const uint32_t *edges, uint16
 // ========================================================================
 // 【GLO Step 4 - 核心】：全局最优图布局计算 (Priority-Weighted BFS)
 // ========================================================================
-static void ComputeGlobalLayout(QASPBuildState &buildstate, 
+static void ComputeGlobalLayout(CRUXBuildState &buildstate, 
                                 std::vector<uint32_t> &mem_to_disk, 
                                 std::vector<uint32_t> &disk_to_mem) {
     uint32_t num_data = buildstate.num_data;
@@ -1223,7 +1223,7 @@ static void ComputeGlobalLayout(QASPBuildState &buildstate,
 
 // 终极压缩落盘引擎
 // 终极压缩落盘引擎 (带 GLO 物理地址翻译)
-static void FlushGraphToDisk(QASPBuildState &buildstate) {
+static void FlushGraphToDisk(CRUXBuildState &buildstate) {
     Timer timer(buildstate.num_data, 10'000);
     timer.report("  Enter Final Graph Compaction and Flush.");
     
@@ -1391,16 +1391,16 @@ static void FlushGraphToDisk(QASPBuildState &buildstate) {
     timer.destroy();
 }
 
-void BuildQASPIndex(Relation heap, Relation index, IndexInfo *indexInfo, ForkNumber forkNum, int m,
+void BuildCRUXIndex(Relation heap, Relation index, IndexInfo *indexInfo, ForkNumber forkNum, int m,
     int efConstruction, int parallel_workers, int maintenance_work_mem, int num_semantic_cluster,
     int num_ground_truth, double *reltuples, double *indtuples) {
-    QASPBuildState buildstate;
-    InitBuildState(buildstate, heap, index, indexInfo, MAIN_FORKNUM, QASPGetM(index), 
-        QASPGetEfConstruction(index), QASPGetBuildParallel(index), QASPGetNumberCluster(index), 
-        QASPGetNumberGroundTruth(index), u_sess->attr.attr_memory.maintenance_work_mem);
+    CRUXBuildState buildstate;
+    InitBuildState(buildstate, heap, index, indexInfo, MAIN_FORKNUM, CRUXGetM(index), 
+        CRUXGetEfConstruction(index), CRUXGetBuildParallel(index), CRUXGetNumberCluster(index), 
+        CRUXGetNumberGroundTruth(index), u_sess->attr.attr_memory.maintenance_work_mem);
     CreateMetaPage(buildstate);
 
-    auto old_ctx = MemoryContextSwitchTo(buildstate.qaspCtx);
+    auto old_ctx = MemoryContextSwitchTo(buildstate.cruxCtx);
     uint32 heap_mark = 0;
     BuildCallbackData data = {buildstate, heap, &heap_mark};
     buildstate.reltuples = IndexBuildHeapScan(heap, index, indexInfo, true, BuildCallback, &data, NULL);
@@ -1443,11 +1443,11 @@ void BuildQASPIndex(Relation heap, Relation index, IndexInfo *indexInfo, ForkNum
     buildstate.destroy();
 }
 
-IndexBuildResult *qaspbuild_internal(Relation heap, Relation index, IndexInfo *indexInfo) {
+IndexBuildResult *cruxbuild_internal(Relation heap, Relation index, IndexInfo *indexInfo) {
     double reltuples, indtuples;
-    BuildQASPIndex(heap, index, indexInfo, MAIN_FORKNUM, QASPGetM(index), 
-        QASPGetEfConstruction(index), QASPGetBuildParallel(index), u_sess->attr.attr_memory.maintenance_work_mem, 
-        QASPGetNumberCluster(index), QASPGetNumberGroundTruth(index), 
+    BuildCRUXIndex(heap, index, indexInfo, MAIN_FORKNUM, CRUXGetM(index), 
+        CRUXGetEfConstruction(index), CRUXGetBuildParallel(index), u_sess->attr.attr_memory.maintenance_work_mem, 
+        CRUXGetNumberCluster(index), CRUXGetNumberGroundTruth(index), 
         &reltuples, &indtuples);
     IndexBuildResult *res = (IndexBuildResult *)palloc0(sizeof(IndexBuildResult));
     res->heap_tuples = reltuples;
