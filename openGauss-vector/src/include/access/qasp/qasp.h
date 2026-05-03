@@ -67,6 +67,10 @@ typedef struct QASPMetaPage {
     BlockNumber overflow_buckets_meta_blkno;
     BlockNumber edgeNumReminder_meta_blkno;
 	BlockNumber logical_to_physical_meta_blkno;
+
+	BlockNumber query_vec_meta_blkno;          
+    BlockNumber upper_index_edges_meta_blkno;
+
 } QASPMetaPage;
 
 struct SearchStats {
@@ -130,6 +134,8 @@ struct QASPBuildState : public BaseObject
     Vector<ItemPointerData> mem_heaptids;
     Vector<Edges*> mem_graph;
 
+	std::vector<std::vector<uint32_t>> mem_query_graph;
+
 	std::vector<std::unordered_map<uint32_t, uint32_t>> global_edge_heat;
 
 	/* Support functions */
@@ -152,6 +158,9 @@ struct QASPBuildState : public BaseObject
 
 		global_edge_heat.clear();
 		std::vector<std::unordered_map<uint32_t, uint32_t>>().swap(global_edge_heat);
+
+		mem_query_graph.clear();
+		std::vector<std::vector<uint32_t>>().swap(mem_query_graph);
 
 		if (!qaspCtxfreed && t_thrd.proc->sessMemorySessionid == qaspCtxcreator) {
 			MemoryContextDelete(qaspCtx);

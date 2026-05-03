@@ -232,6 +232,236 @@ static void BuildCallback(Relation index, HeapTuple hup, Datum *values, const bo
     }
 }
 
+// ========================================================================
+// 【新增】Step 3: 提取 Cross-Query KNN Edges (长程边跨模态连接)
+// ========================================================================
+static void CrossQueryKNNEdges(QASPBuildState &buildstate, int32 *res) {
+    Timer timer(QUERYSIZE, 10000);
+    timer.report("  Enter Cross-query KNN Edges construction...");
+
+    // 1. 读取步骤二中落盘的 Query Graph
+    DiskVector<QuerySubIndexNeighbors> query_edges(buildstate.index, buildstate.upper_index_edges_meta_blkno, false);
+    
+    // 准备细粒度自旋锁，保护 mem_graph 的并发写入
+    std::vector<slock_t> locks(buildstate.num_data);
+    for(auto &l : locks) SpinLockInit(&l);
+
+    // 2. 多线程遍历每个 query 及其邻居
+    INIT_TASK_RUNNER();
+    LAUNCH_CONSUMER_WITHOUT_LOCKGROUPLEADER(buildstate.parallel_workers);
+    const auto task = [&](int, int64 start, int64 end) -> void {
+        for (int64 q = start; q < end; q++) {
+            // p 是 q 的 pivot (即最近的数据点, KNN_1)
+            uint32 p = res[q * buildstate.num_ground_truth]; 
+            uint32 c_i = buildstate.query_cluster_map[q];    
+
+            // 获取 Query Graph 中该 q 的所有邻居
+            QuerySubIndexNeighbors q_neighbors = query_edges.get<AccessorLockType::ReadLock>(q);
+
+            for (size_t edge_idx = 0; edge_idx < 30; edge_idx++) {
+                uint32 q_j = q_neighbors.data_offset_subindex[edge_idx];
+                if (q_j == (uint32)-1) break; // 遇到 -1 说明邻居表结束
+                
+                uint32 c_j = buildstate.query_cluster_map[q_j];
+                uint32 p_j = res[q_j * buildstate.num_ground_truth]; // p_j 是 q_j 的 pivot
+
+                // ----------------------------------------------------
+                // 3. argmin 逻辑：正向寻找 u 
+                // 目标：Find data vector u in KNN_k(q_j) that is nearest to query q
+                // ----------------------------------------------------
+                float min_dist_u = FLT_MAX;
+                uint32 best_u = p_j; // 默认 fallback 到 p_j
+                for (uint32 k = 0; k < buildstate.num_ground_truth; k++) {
+                    uint32 candidate_u = res[q_j * buildstate.num_ground_truth + k];
+                    VecBuffer buf_u = vec_read_buffer(buildstate.index, candidate_u, buildstate.dimensions * sizeof(float));
+                    float dist = buildstate.func_ptr(FloatVectorArrayGet(buildstate.samples, q), (float*)buf_u.get_vecbuf(), buildstate.dimensions);
+                    buf_u.release();
+                    if (dist < min_dist_u) {
+                        min_dist_u = dist;
+                        best_u = candidate_u;
+                    }
+                }
+
+                // ----------------------------------------------------
+                // 3. argmin 逻辑：反向寻找 v
+                // 目标：Find data vector v in KNN_k(q) that is nearest to query q_j
+                // ----------------------------------------------------
+                float min_dist_v = FLT_MAX;
+                uint32 best_v = p; // 默认 fallback 到 p
+                for (uint32 k = 0; k < buildstate.num_ground_truth; k++) {
+                    uint32 candidate_v = res[q * buildstate.num_ground_truth + k];
+                    VecBuffer buf_v = vec_read_buffer(buildstate.index, candidate_v, buildstate.dimensions * sizeof(float));
+                    float dist = buildstate.func_ptr(FloatVectorArrayGet(buildstate.samples, q_j), (float*)buf_v.get_vecbuf(), buildstate.dimensions);
+                    buf_v.release();
+                    if (dist < min_dist_v) {
+                        min_dist_v = dist;
+                        best_v = candidate_v;
+                    }
+                }
+
+                // ----------------------------------------------------
+                // 4. 并发写入 mem_graph 并增加 GLO 热度
+                // ----------------------------------------------------
+                
+                // 写入正向边 (p -> best_u)，归属 cluster c_i
+                SpinLockAcquire(&locks[p]);
+                Edges &edges_i = buildstate.mem_graph[p][c_i];
+                if (edges_i.edge_num < 40) { // 判断容量限制
+                    bool exists = false;
+                    for (uint16 k = 0; k < edges_i.edge_num; k++) {
+                        if (edges_i.edges[k].data_offset == best_u) { exists = true; break; }
+                    }
+                    if (!exists && best_u != p) {
+                        edges_i.edges[edges_i.edge_num].data_offset = best_u;
+                        edges_i.edge_num++;
+                        // 增加 GLO 的热度权重 (权重设为 100，强调它是关键的跨模态桥梁)
+                        buildstate.global_edge_heat[p][best_u] += 100; 
+                    }
+                }
+                SpinLockRelease(&locks[p]);
+
+                // 写入反向边 (p_j -> best_v)，归属 cluster c_j
+                SpinLockAcquire(&locks[p_j]);
+                Edges &edges_j = buildstate.mem_graph[p_j][c_j];
+                if (edges_j.edge_num < 40) { // 判断容量限制
+                    bool exists = false;
+                    for (uint16 k = 0; k < edges_j.edge_num; k++) {
+                        if (edges_j.edges[k].data_offset == best_v) { exists = true; break; }
+                    }
+                    if (!exists && best_v != p_j) {
+                        edges_j.edges[edges_j.edge_num].data_offset = best_v;
+                        edges_j.edge_num++;
+                        // 增加 GLO 的热度权重
+                        buildstate.global_edge_heat[p_j][best_v] += 100; 
+                    }
+                }
+                SpinLockRelease(&locks[p_j]);
+            }
+            timer.inc_loop_count_forground_report("  Constructing Cross-Query Edges");
+        }
+    };
+    START_TASK_POOL();
+    PARALLEL_BATCH_RUN_INIT();
+    PARALLEL_BATCH_RUN_TASK_WAIT(QUERYSIZE, buildstate.parallel_workers + 1, task);
+    END_TASK_POOL();
+    DESTROY_TASK_RUNNER();
+
+    query_edges.destroy();
+    for(auto &l : locks) SpinLockFree(&l);
+    timer.report("  Cross-query KNN Edges Done");
+    timer.destroy();
+}
+
+// ========================================================================
+// 【新增】Step 2: 构建训练集的 Query Graph (内存 Vamana 并写入 DiskVector)
+// ========================================================================
+static void buildQueryGraph(QASPBuildState &buildstate) {
+    Timer timer(QUERYSIZE, 10000);
+    timer.report("  Enter Build Query Graph...");
+
+    uint32 num_queries = QUERYSIZE;
+    std::vector<std::vector<uint32_t>> query_graph(num_queries);
+    std::vector<slock_t> locks(num_queries);
+    for(auto &l : locks) SpinLockInit(&l);
+
+    // 1. 保存所有 Training Queries 到 DiskVector
+    DiskVector<float> query_vecs(buildstate.index, buildstate.query_vec_meta_blkno, false);
+    for (uint32 i = 0; i < num_queries; i++) {
+        query_vecs.push_back_n(FloatVectorArrayGet(buildstate.samples, i), buildstate.dimensions);
+    }
+    query_vecs.destroy();
+    timer.report("  Flushed Query Vectors to Disk");
+
+    // 2. 多线程构建 Query Vamana 图
+    uint32 query_L = 40; // 启发式搜索窗口 (L)
+    uint32 query_R = 15; // 启发式最大出度 (R)
+    uint32 ep = 0;       // 入口点默认选第0个query
+
+    INIT_TASK_RUNNER();
+    // 使用传入的 parallel_workers 控制并发度
+    LAUNCH_CONSUMER_WITHOUT_LOCKGROUPLEADER(buildstate.parallel_workers);
+    const auto task = [&](int, int64 start, int64 end) -> void {
+        for (int64 i = start; i < end; i++) {
+            if (i == ep) continue;
+            float* v_i = FloatVectorArrayGet(buildstate.samples, i);
+            CandidateQueue cq(query_L);
+            cq.emplace(ep, buildstate.func_ptr(v_i, FloatVectorArrayGet(buildstate.samples, ep), buildstate.dimensions));
+            UnorderedSet<uint32> visited;
+            visited.insert(ep);
+
+            // 阶段 A: Greedy Search 寻找邻居候选集
+            while (cq.has_unexplored()) {
+                QueryNeighbor curr = cq.pop_unexplored();
+                SpinLockAcquire(&locks[curr.id]);
+                auto neighbors = query_graph[curr.id];
+                SpinLockRelease(&locks[curr.id]);
+
+                for (uint32 n_id : neighbors) {
+                    if (visited.insert(n_id).second) {
+                        float d = buildstate.func_ptr(v_i, FloatVectorArrayGet(buildstate.samples, n_id), buildstate.dimensions);
+                        cq.emplace(n_id, d);
+                    }
+                }
+            }
+            visited.destroy();
+
+            // 阶段 B: Robust Prune (基于三角不等式修剪冗余边)
+            CandidateQueue cq_prune(query_L);
+            for (const auto& x : cq) cq_prune.insert(x);
+
+            std::vector<uint32> result;
+            while (cq_prune.has_unexplored() && result.size() < query_R) {
+                QueryNeighbor p = cq_prune.pop_unexplored();
+                bool occlude = false;
+                for (uint32 t : result) {
+                    float dist = buildstate.func_ptr(FloatVectorArrayGet(buildstate.samples, p.id), FloatVectorArrayGet(buildstate.samples, t), buildstate.dimensions);
+                    if (dist < p.distance) { occlude = true; break; }
+                }
+                if (!occlude) result.push_back(p.id);
+            }
+
+            SpinLockAcquire(&locks[i]);
+            query_graph[i] = result;
+            SpinLockRelease(&locks[i]);
+
+            // 阶段 C: 添加反向边 (保持双向连通性，阈值放宽到 R*2)
+            for (uint32 rev_id : result) {
+                SpinLockAcquire(&locks[rev_id]);
+                if (query_graph[rev_id].size() < query_R * 2) {
+                    if (std::find(query_graph[rev_id].begin(), query_graph[rev_id].end(), i) == query_graph[rev_id].end()) {
+                        query_graph[rev_id].push_back(i);
+                    }
+                }
+                SpinLockRelease(&locks[rev_id]);
+            }
+            timer.inc_loop_count_forground_report("  Building Query Graph");
+        }
+    };
+    START_TASK_POOL();
+    PARALLEL_BATCH_RUN_INIT();
+    PARALLEL_BATCH_RUN_TASK_WAIT(num_queries, buildstate.parallel_workers + 1, task);
+    END_TASK_POOL();
+    DESTROY_TASK_RUNNER();
+
+    // 3. 将建好的 Query Graph 序列化并写入 DiskVector
+    DiskVector<QuerySubIndexNeighbors> query_edges(buildstate.index, buildstate.upper_index_edges_meta_blkno, false);
+    for (uint32 i = 0; i < num_queries; i++) {
+        QuerySubIndexNeighbors q_neighbors;
+        // 初始化为空 (-1)
+        memset(q_neighbors.data_offset_subindex, -1, sizeof(q_neighbors.data_offset_subindex));
+        // 最多存 30 条边（防越界），一般 prunning 后是 15
+        for (size_t j = 0; j < std::min((size_t)30, query_graph[i].size()); j++) {
+            q_neighbors.data_offset_subindex[j] = query_graph[i][j];
+        }
+        query_edges.push_back(q_neighbors);
+    }
+    query_edges.destroy();
+    
+    for(auto &l : locks) SpinLockFree(&l);
+    timer.report("  Build Query Graph Done");
+    timer.destroy();
+}
+
 Vector<size_t> SemanticPrune(QASPBuildState &buildstate, CandidateQueue &cq, uint32 tgt_id, bool disk, Relation index) {
     if (!RelationIsValid(index) && disk) {
         index = buildstate.index;
@@ -502,6 +732,12 @@ static void Initialization(QASPBuildState &buildstate) {
     // DESTROY_TASK_RUNNER();
     timer.report("  Build Projection Graph Done");
     timer.destroy();
+
+    // ==========================================================
+    // 【新增 Step 4.1】：在完成传统的单点 Projection 后，启动 Cross-Query KNN Edges 机制
+    CrossQueryKNNEdges(buildstate, res);
+    // ==========================================================
+
     pfree(res);
 }
 
@@ -835,7 +1071,6 @@ void CreateMetaPage(QASPBuildState &buildstate) {
     buildstate.centers_meta_blkno = DiskVector<float>::get_disk_vector(buildstate.index, false);
     metaPage->centers_meta_blkno = buildstate.centers_meta_blkno;
 
-    // 【核心改变】：直接挂载压缩后的终极文件指针（此时为空，等到最后压缩时再写）
     buildstate.scan_data_meta_blkno = DiskVector<ScanData>::get_disk_vector(buildstate.index, false);
     metaPage->scan_data_meta_blkno = buildstate.scan_data_meta_blkno;
 
@@ -853,6 +1088,12 @@ void CreateMetaPage(QASPBuildState &buildstate) {
     // 【GLO 适配：申请 Logical -> Physical 映射表的物理文件】
     buildstate.logical_to_physical_meta_blkno = DiskVector<uint32_t>::get_disk_vector(buildstate.index, false);
     metaPage->logical_to_physical_meta_blkno = buildstate.logical_to_physical_meta_blkno;
+
+    buildstate.query_vec_meta_blkno = DiskVector<float>::get_disk_vector(buildstate.index, false);
+    metaPage->query_vec_meta_blkno = buildstate.query_vec_meta_blkno;
+
+    buildstate.upper_index_edges_meta_blkno = DiskVector<QuerySubIndexNeighbors>::get_disk_vector(buildstate.index, false);
+    metaPage->upper_index_edges_meta_blkno = buildstate.upper_index_edges_meta_blkno;
 
     ((PageHeader) page)->pd_lower = ((char *) metaPage + sizeof(QASPMetaPage)) - (char *) page;
     AnnCommitBuffer(buf);
@@ -1179,6 +1420,10 @@ void BuildQASPIndex(Relation heap, Relation index, IndexInfo *indexInfo, ForkNum
     buildstate.global_edge_heat.resize(buildstate.num_data);
 
     compute_entry_point(buildstate);
+
+    buildstate.parallel_workers = parallel_workers; // 确保线程数已配置
+    buildQueryGraph(buildstate);
+
     Initialization(buildstate);
     update_edges_num(buildstate, false);
     UpdateMetaPage(buildstate);
