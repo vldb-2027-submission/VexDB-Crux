@@ -127,7 +127,7 @@ DATA(insert OID = 405 (  hash		1 1 f f t f f f f f f f f 23 hashinsert hashbegin
 DESCR("hash index access method");
 #define HASH_AM_OID 405
 
-DATA(insert OID = 439 (  ivfflat		0 4 t t f f f t f f t f t 0 ivfflatinsert ivfflatbeginscan ivfflatgettuple - ivfflatrescan ivfflatendscan - - - ivfflatbuild ivfflatbuildempty ivfflatbulkdelete ivfflatvacuumcleanup - ivfflatcostestimate ivfflatoptions));
+DATA(insert OID = 439 (  crux		0 4 t t f f f t f f t f t 0 ivfflatinsert ivfflatbeginscan ivfflatgettuple - ivfflatrescan ivfflatendscan - - - ivfflatbuild ivfflatbuildempty ivfflatbulkdelete ivfflatvacuumcleanup - ivfflatcostestimate ivfflatoptions));
 DESCR("ivfflat index access method");
 #define IVFFLAT_AM_OID 439
 

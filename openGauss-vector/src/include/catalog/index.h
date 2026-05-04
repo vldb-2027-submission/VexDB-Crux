@@ -28,7 +28,7 @@
 #define DEFAULT_GIN_INDEX_TYPE "gin"
 #define CSTORE_GINBTREE_INDEX_TYPE "cgin"
 #define DEFAULT_USTORE_INDEX_TYPE "ubtree"
-#define DEFAULT_IVFFLAT_INDEX_TYPE "ivfflat"
+#define DEFAULT_IVFFLAT_INDEX_TYPE "crux"
 #define DEFAULT_IVFPQ_INDEX_TYPE "ivfpq"
 #define DEFAULT_HNSW_INDEX_TYPE "hnsw"
 #define DEFAULT_GRAPH_INDEX_TYPE "graph_index"
